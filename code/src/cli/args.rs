@@ -20,6 +20,26 @@ pub enum Commands {
         command: ContextModelCommand,
     },
 
+    /// Logic concept model operations
+    LogicModel {
+        /// YAML source file path
+        #[arg(short, long, value_name = "FILE")]
+        src: PathBuf,
+
+        #[command(subcommand)]
+        command: LogicModelCommand,
+    },
+
+    /// Logic Architecture Concept Model operations (defines hierarchy rules)
+    ConceptModel {
+        /// YAML source file path
+        #[arg(short, long, value_name = "FILE")]
+        src: PathBuf,
+
+        #[command(subcommand)]
+        command: ConceptModelCommand,
+    },
+
     /// Generate PlantUML diagram
     Generate {
         /// YAML source file path
@@ -53,8 +73,12 @@ pub enum Commands {
 
 #[derive(ValueEnum, Clone, Debug)]
 pub enum DiagramType {
+    /// Context diagram (system as black box)
     Context,
-    LogicConcept,
+    /// Logic Architecture Concept Model (defines hierarchy rules)
+    ConceptModel,
+    /// Logic View (concrete implementation, must follow concept model)
+    LogicView,
 }
 
 #[derive(Subcommand)]
@@ -245,4 +269,255 @@ impl From<ProtocolArg> for crate::model::c4::context::Protocol {
             ProtocolArg::Amqp => crate::model::c4::context::Protocol::Amqp,
         }
     }
+}
+
+// ==================== Logic Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum LogicModelCommand {
+    /// Add an element
+    #[command(subcommand)]
+    Add(LogicAddCommand),
+
+    /// Remove an element
+    #[command(subcommand)]
+    Remove(LogicRemoveCommand),
+
+    /// List elements
+    List {
+        /// Element type to list
+        #[arg(value_enum)]
+        element: LogicListElement,
+    },
+
+    /// Show element details
+    Show {
+        /// Element ID
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum LogicAddCommand {
+    /// Add or update the system
+    System {
+        /// System ID
+        id: String,
+        /// System name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// System description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+
+    /// Add a subsystem
+    Subsystem {
+        /// Subsystem ID
+        id: String,
+        /// Subsystem name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Subsystem description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+
+    /// Add a component to system or subsystem
+    Component {
+        /// Component ID
+        id: String,
+        /// Component name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Component description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Parent subsystem ID (optional, if not specified adds to system)
+        #[arg(short, long)]
+        subsystem: Option<String>,
+    },
+
+    /// Add a module to a component
+    Module {
+        /// Component ID
+        component_id: String,
+        /// Module ID
+        id: String,
+        /// Module name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Module description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Parent module ID (optional, for nested modules)
+        #[arg(short, long)]
+        parent: Option<String>,
+    },
+
+    /// Add an interface to a module
+    Interface {
+        /// Component ID
+        component_id: String,
+        /// Module ID
+        module_id: String,
+        /// Interface ID
+        id: String,
+        /// Interface name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Interface description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+
+    /// Add a dependency (module uses interface)
+    Dependency {
+        /// Component ID
+        component_id: String,
+        /// Module ID that has the dependency
+        module_id: String,
+        /// Interface ID that is being used
+        interface_id: String,
+    },
+
+    /// Expose an interface from a component
+    Expose {
+        /// Component ID
+        component_id: String,
+        /// Interface ID to expose
+        interface_id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum LogicRemoveCommand {
+    /// Remove a subsystem
+    Subsystem {
+        /// Subsystem ID
+        id: String,
+    },
+
+    /// Remove a component
+    Component {
+        /// Component ID
+        id: String,
+    },
+
+    /// Remove a module
+    Module {
+        /// Component ID
+        component_id: String,
+        /// Module ID
+        id: String,
+    },
+
+    /// Remove an interface
+    Interface {
+        /// Component ID
+        component_id: String,
+        /// Module ID
+        module_id: String,
+        /// Interface ID
+        id: String,
+    },
+
+    /// Remove a dependency
+    Dependency {
+        /// Component ID
+        component_id: String,
+        /// Module ID
+        module_id: String,
+        /// Interface ID
+        interface_id: String,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum LogicListElement {
+    System,
+    Subsystems,
+    Components,
+    Modules,
+    Interfaces,
+    Dependencies,
+}
+
+// ==================== Concept Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum ConceptModelCommand {
+    /// Initialize or update the concept model
+    Init {
+        /// Model title
+        #[arg(short, long)]
+        title: Option<String>,
+    },
+
+    /// Add elements to the concept model
+    #[command(subcommand)]
+    Add(ConceptModelAddCommand),
+
+    /// Remove elements from the concept model
+    #[command(subcommand)]
+    Remove(ConceptModelRemoveCommand),
+
+    /// Set containment rules for a level
+    SetContainment {
+        /// Level ID
+        level_id: String,
+        /// Types this level can contain (comma-separated)
+        #[arg(value_delimiter = ',')]
+        can_contain: Vec<String>,
+    },
+
+    /// List all hierarchy levels and element types
+    List,
+
+    /// Show level details
+    Show {
+        /// Level ID
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ConceptModelAddCommand {
+    /// Add an element type (e.g., subsystem, component, module)
+    Element {
+        /// Element type name
+        #[arg(value_name = "TYPE")]
+        type_name: String,
+    },
+
+    /// Add a hierarchy level
+    Level {
+        /// Level ID (e.g., SYSTEM, COMPONENT, LAYER)
+        id: String,
+        /// Level name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Level description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Types this level can contain (comma-separated)
+        #[arg(short, long, value_delimiter = ',')]
+        can_contain: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ConceptModelRemoveCommand {
+    /// Remove an element type
+    Element {
+        /// Element type name
+        #[arg(value_name = "TYPE")]
+        type_name: String,
+    },
+
+    /// Remove a hierarchy level
+    Level {
+        /// Level ID
+        id: String,
+    },
 }

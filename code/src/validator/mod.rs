@@ -1,9 +1,11 @@
 pub mod result;
 pub mod rules;
 pub mod logic_concept;
+pub mod concept_model;
 
 use crate::model::c4::context::ContextDiagram;
 use crate::model::logic::concept::LogicConceptDiagram;
+use crate::model::logic::concept_model::LogicArchitectureConceptModel;
 use result::ValidationResult;
 
 pub use result::{ValidationResult as ValResult, Severity};
@@ -27,4 +29,9 @@ pub fn validate(diagram: &ContextDiagram) -> ValidationResult {
 /// Validate a LogicConceptDiagram
 pub fn validate_logic_concept(diagram: &LogicConceptDiagram) -> ValidationResult {
     logic_concept::validate(diagram)
+}
+
+/// Validate a LogicArchitectureConceptModel
+pub fn validate_concept_model(model: &LogicArchitectureConceptModel) -> ValidationResult {
+    concept_model::validate(model)
 }

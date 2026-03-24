@@ -1,4 +1,4 @@
-use crate::model::logic::concept::{Component, LogicConceptDiagram, Module, Submodule, Subsystem, System};
+use crate::model::logic::concept::{Component, Interface, LogicConceptDiagram, Module, Subsystem, System};
 use crate::validator::result::{ValidationError, ValidationResult, Severity};
 use regex::Regex;
 
@@ -128,6 +128,11 @@ fn validate_component(
     for module in &component.modules {
         validate_module(result, module, pattern, &path);
     }
+
+    // Validate exposed interfaces
+    for iface_id in &component.exposed_interfaces {
+        validate_interface_id(result, iface_id, pattern, &format!("{}.exposed_interfaces", path));
+    }
 }
 
 fn validate_module(
@@ -163,66 +168,95 @@ fn validate_module(
         });
     }
 
-    // Validate submodules
-    for sub in &module.submodules {
-        validate_submodule(result, sub, pattern, &path);
+    // Validate interfaces
+    for iface in &module.interfaces {
+        validate_interface(result, iface, pattern, &path);
+    }
+
+    // Validate dependencies (interface IDs)
+    for dep_id in &module.dependencies {
+        validate_interface_id(result, dep_id, pattern, &format!("{}.dependencies", path));
+    }
+
+    // Recursively validate nested modules
+    for m in &module.modules {
+        validate_module(result, m, pattern, &path);
     }
 }
 
-fn validate_submodule(
+fn validate_interface(
     result: &mut ValidationResult,
-    submodule: &Submodule,
+    interface: &Interface,
     pattern: &Regex,
     parent_path: &str,
 ) {
-    let path = format!("{}.submodules.{}", parent_path, submodule.id);
+    let path = format!("{}.interfaces.{}", parent_path, interface.id);
 
     // C001: Non-empty ID
-    if submodule.id.is_empty() {
+    if interface.id.is_empty() {
         result.add_error(ValidationError {
             code: "C001".to_string(),
             rule: "NonEmptyId".to_string(),
-            message: "Submodule ID cannot be empty".to_string(),
+            message: "Interface ID cannot be empty".to_string(),
             severity: Severity::Error,
             location: Some(path.clone()),
         });
     }
 
-    // N001: UPPER_SNAKE_CASE naming
-    if !pattern.is_match(&submodule.id) && !submodule.id.is_empty() {
+    // N001: UPPER_SNAKE_CASE naming (interfaces typically use ITF_ prefix)
+    if !pattern.is_match(&interface.id) && !interface.id.is_empty() {
         result.add_error(ValidationError {
             code: "N001".to_string(),
-            rule: "SubmoduleIdNaming".to_string(),
+            rule: "InterfaceIdNaming".to_string(),
             message: format!(
-                "Submodule ID '{}' does not follow UPPER_SNAKE_CASE convention",
-                submodule.id
+                "Interface ID '{}' does not follow UPPER_SNAKE_CASE convention",
+                interface.id
             ),
             severity: Severity::Warning,
-            location: Some(path.clone()),
+            location: Some(path),
+        });
+    }
+}
+
+fn validate_interface_id(
+    result: &mut ValidationResult,
+    interface_id: &str,
+    pattern: &Regex,
+    location: &str,
+) {
+    // C001: Non-empty ID
+    if interface_id.is_empty() {
+        result.add_error(ValidationError {
+            code: "C001".to_string(),
+            rule: "NonEmptyId".to_string(),
+            message: "Interface ID cannot be empty".to_string(),
+            severity: Severity::Error,
+            location: Some(location.to_string()),
         });
     }
 
-    // Recursively validate nested submodules
-    for sub in &submodule.submodules {
-        validate_submodule(result, sub, pattern, &path);
+    // N001: UPPER_SNAKE_CASE naming
+    if !pattern.is_match(interface_id) && !interface_id.is_empty() {
+        result.add_error(ValidationError {
+            code: "N001".to_string(),
+            rule: "InterfaceIdNaming".to_string(),
+            message: format!(
+                "Interface ID '{}' does not follow UPPER_SNAKE_CASE convention",
+                interface_id
+            ),
+            severity: Severity::Warning,
+            location: Some(location.to_string()),
+        });
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::logic::concept::LogicConceptDiagram;
 
     #[test]
     fn test_validate_valid_diagram() {
-        let mut diagram = LogicConceptDiagram::new("MY_SYSTEM", "My System");
-        diagram.system.subsystems.push(Subsystem {
-            id: "SUB_SYS".to_string(),
-            name: "Sub System".to_string(),
-            description: None,
-            components: vec![],
-        });
-
+        let diagram = LogicConceptDiagram::new("MY_SYSTEM", "My System");
         let result = validate(&diagram);
         assert!(result.is_valid);
     }

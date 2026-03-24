@@ -6,9 +6,7 @@ target/
 CLAUDE.md
 
 # Local test files
-test.yaml
-test-logic.yaml
-test-workspace.yaml
+*.yaml
 
 # Build output
 output/
