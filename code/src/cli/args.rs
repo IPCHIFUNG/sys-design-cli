@@ -338,10 +338,8 @@ pub enum LogicAddCommand {
         subsystem: Option<String>,
     },
 
-    /// Add a module to a component
+    /// Add a module (standalone element)
     Module {
-        /// Component ID
-        component_id: String,
         /// Module ID
         id: String,
         /// Module name
@@ -350,17 +348,37 @@ pub enum LogicAddCommand {
         /// Module description
         #[arg(short = 'd', long)]
         desc: Option<String>,
-        /// Parent module ID (optional, for nested modules)
-        #[arg(short, long)]
-        parent: Option<String>,
     },
 
-    /// Add an interface to a module
+    /// Add a submodule (standalone element)
+    Submodule {
+        /// Submodule ID
+        id: String,
+        /// Submodule name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Submodule description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+
+    /// Add a generic element based on concept model
+    Element {
+        /// Element type (must be defined in concept model)
+        #[arg(value_name = "TYPE")]
+        type_name: String,
+        /// Element ID
+        id: String,
+        /// Element name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Element description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+
+    /// Add an interface (standalone element)
     Interface {
-        /// Component ID
-        component_id: String,
-        /// Module ID
-        module_id: String,
         /// Interface ID
         id: String,
         /// Interface name
@@ -369,6 +387,22 @@ pub enum LogicAddCommand {
         /// Interface description
         #[arg(short = 'd', long)]
         desc: Option<String>,
+    },
+
+    /// Add a provide relation (element provides interface)
+    ProvideRelation {
+        /// Element ID that provides the interface
+        element_id: String,
+        /// Interface ID to provide
+        interface_id: String,
+    },
+
+    /// Add a containment relation (parent contains child element)
+    Containment {
+        /// Parent element ID
+        parent_id: String,
+        /// Child element ID
+        child_id: String,
     },
 
     /// Add a dependency (module uses interface)
@@ -447,13 +481,6 @@ pub enum LogicListElement {
 
 #[derive(Subcommand)]
 pub enum ConceptModelCommand {
-    /// Initialize or update the concept model
-    Init {
-        /// Model title
-        #[arg(short, long)]
-        title: Option<String>,
-    },
-
     /// Add elements to the concept model
     #[command(subcommand)]
     Add(ConceptModelAddCommand),
@@ -461,15 +488,6 @@ pub enum ConceptModelCommand {
     /// Remove elements from the concept model
     #[command(subcommand)]
     Remove(ConceptModelRemoveCommand),
-
-    /// Set containment rules for a level
-    SetContainment {
-        /// Level ID
-        level_id: String,
-        /// Types this level can contain (comma-separated)
-        #[arg(value_delimiter = ',')]
-        can_contain: Vec<String>,
-    },
 
     /// List all hierarchy levels and element types
     List,
@@ -488,6 +506,14 @@ pub enum ConceptModelAddCommand {
         /// Element type name
         #[arg(value_name = "TYPE")]
         type_name: String,
+    },
+
+    /// Add a containment relationship (parent can contain child)
+    Containment {
+        /// Parent element type
+        parent: String,
+        /// Child element type
+        child: String,
     },
 
     /// Add a hierarchy level

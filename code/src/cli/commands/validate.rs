@@ -107,6 +107,11 @@ fn validate_from_workspace(
         validate_workspace_unused_elements(workspace, concept_model, &mut result);
     }
 
+    // Always check for orphan elements if both logic_view and concept_model exist
+    if let (Some(logic_view), Some(concept_model)) = (&workspace.logic_view, &workspace.logic_architecture_concept_model) {
+        validate_orphan_elements(logic_view, concept_model, &mut result);
+    }
+
     result.is_valid = !result.errors.iter().any(|e| e.severity == Severity::Error);
 
     Ok(result)
@@ -148,9 +153,20 @@ fn validate_workspace_unused_elements(
         }
     }
 
+    // Check if any containment relationships are defined in the concept model
+    let has_containment_rules = !concept_model.hierarchy.levels.is_empty();
+
     // Check for unused element types
     let unused = concept_model.get_unused_element_types(&used_types);
     for unused_type in unused {
+        // If no containment rules are defined, it's an error (model incomplete)
+        // If containment rules exist but element not instantiated, it's a warning (valid structure)
+        let severity = if has_containment_rules {
+            Severity::Warning
+        } else {
+            Severity::Error
+        };
+
         result.add_error(ValidationError {
             code: "H002".to_string(),
             rule: "UnusedElementType".to_string(),
@@ -158,7 +174,7 @@ fn validate_workspace_unused_elements(
                 "Element type '{}' is defined in concept model but not used in logic view",
                 unused_type
             ),
-            severity: Severity::Error,
+            severity,
             location: Some("logic_architecture_concept_model.element_types".to_string()),
         });
     }
@@ -180,6 +196,9 @@ fn validate_logic_view_against_concept_model(
 
     // Validate unused element types
     validate_unused_element_types(logic_view, concept_model, &mut result);
+
+    // Validate orphan elements (elements without containment relationships)
+    validate_orphan_elements(logic_view, concept_model, &mut result);
 
     result.is_valid = !result.errors.iter().any(|e| e.severity == Severity::Error);
 
@@ -213,16 +232,39 @@ fn validate_unused_element_types(
         }
     }
 
-    // Check for modules
-    let has_modules = logic_view.system.components.iter().any(|c| !c.modules.is_empty())
+    // Check for modules (in system.modules, components, or subsystems)
+    let has_modules = !logic_view.system.modules.is_empty()
+        || logic_view.system.components.iter().any(|c| !c.modules.is_empty())
         || logic_view.system.subsystems.iter().any(|s| s.components.iter().any(|c| !c.modules.is_empty()));
     if has_modules {
         used_types.push("MODULE");
     }
 
+    // Check for submodules (nested modules)
+    fn has_nested_modules(modules: &[crate::model::logic::concept::Module]) -> bool {
+        modules.iter().any(|m| !m.modules.is_empty() || has_nested_modules(&m.modules))
+    }
+    let has_submodules = has_nested_modules(&logic_view.system.modules)
+        || logic_view.system.components.iter().any(|c| has_nested_modules(&c.modules))
+        || logic_view.system.subsystems.iter().any(|s| s.components.iter().any(|c| has_nested_modules(&c.modules)));
+    if has_submodules {
+        used_types.push("SUBMODULE");
+    }
+
+    // Check if any containment relationships are defined in the concept model
+    let has_containment_rules = !concept_model.hierarchy.levels.is_empty();
+
     // Check for unused element types
     let unused = concept_model.get_unused_element_types(&used_types);
     for unused_type in unused {
+        // If no containment rules are defined, it's an error (model incomplete)
+        // If containment rules exist but element not instantiated, it's a warning (valid structure)
+        let severity = if has_containment_rules {
+            Severity::Warning
+        } else {
+            Severity::Error
+        };
+
         result.add_error(ValidationError {
             code: "H002".to_string(),
             rule: "UnusedElementType".to_string(),
@@ -230,7 +272,7 @@ fn validate_unused_element_types(
                 "Element type '{}' is defined in concept model but not used in logic view",
                 unused_type
             ),
-            severity: Severity::Error,
+            severity,
             location: Some("logic_architecture_concept_model.element_types".to_string()),
         });
     }
@@ -266,6 +308,23 @@ fn validate_hierarchy_conformance(
                 severity: Severity::Error,
                 location: Some("system.components".to_string()),
             });
+        }
+    }
+
+    // Check for modules directly under system
+    if !logic_view.system.modules.is_empty() {
+        if !concept_model.can_contain("SYSTEM", "MODULE") {
+            result.add_error(ValidationError {
+                code: "H001".to_string(),
+                rule: "HierarchyConformance".to_string(),
+                message: "System cannot contain Module according to concept model".to_string(),
+                severity: Severity::Error,
+                location: Some("system.modules".to_string()),
+            });
+        }
+        // Validate module hierarchy for system-level modules
+        for module in &logic_view.system.modules {
+            validate_module_hierarchy(module, concept_model, result, "system.modules");
         }
     }
 
@@ -360,6 +419,75 @@ fn validate_module_hierarchy(
             result,
             &format!("{}.{}", location, module.id),
         );
+    }
+}
+
+/// Validate that all elements have containment relationships (no orphan elements)
+fn validate_orphan_elements(
+    logic_view: &crate::model::logic::concept::LogicConceptDiagram,
+    concept_model: &crate::model::logic::concept_model::LogicArchitectureConceptModel,
+    result: &mut ValidationResult,
+) {
+    use crate::validator::result::ValidationError;
+
+    // Only validate if concept model has containment rules defined
+    if concept_model.hierarchy.levels.is_empty() {
+        return;
+    }
+
+    // Collect all child IDs from containment relationships
+    let contained_children: std::collections::HashSet<&str> = logic_view
+        .containments
+        .iter()
+        .map(|c| c.child_id.as_str())
+        .collect();
+
+    // Check subsystems
+    for sub in &logic_view.system.subsystems {
+        if !contained_children.contains(sub.id.as_str()) {
+            result.add_error(ValidationError {
+                code: "O001".to_string(),
+                rule: "OrphanElement".to_string(),
+                message: format!(
+                    "Subsystem '{}' is not contained by any parent element. Add containment relationship.",
+                    sub.id
+                ),
+                severity: Severity::Error,
+                location: Some(format!("subsystems.{}", sub.id)),
+            });
+        }
+    }
+
+    // Check components
+    for comp in &logic_view.system.components {
+        if !contained_children.contains(comp.id.as_str()) {
+            result.add_error(ValidationError {
+                code: "O001".to_string(),
+                rule: "OrphanElement".to_string(),
+                message: format!(
+                    "Component '{}' is not contained by any parent element. Add containment relationship.",
+                    comp.id
+                ),
+                severity: Severity::Error,
+                location: Some(format!("components.{}", comp.id)),
+            });
+        }
+    }
+
+    // Check modules at system level
+    for module in &logic_view.system.modules {
+        if !contained_children.contains(module.id.as_str()) {
+            result.add_error(ValidationError {
+                code: "O001".to_string(),
+                rule: "OrphanElement".to_string(),
+                message: format!(
+                    "Module '{}' is not contained by any parent element. Add containment relationship.",
+                    module.id
+                ),
+                severity: Severity::Error,
+                location: Some(format!("modules.{}", module.id)),
+            });
+        }
     }
 }
 

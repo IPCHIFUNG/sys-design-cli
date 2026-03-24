@@ -8,8 +8,17 @@ pub struct LogicConceptDiagram {
     pub kind: DiagramKind,
     pub metadata: Metadata,
     pub system: System,
+    /// Provide relations: element provides interface
+    #[serde(default)]
+    pub provide_relations: Vec<ProvideRelation>,
+    /// Element containment relationships: parent contains child
+    #[serde(default)]
+    pub containments: Vec<ElementContainment>,
     #[serde(default)]
     pub dependencies: Vec<Dependency>,
+    /// IDs of elements that are explicitly defined as submodules
+    #[serde(default)]
+    pub submodule_ids: Vec<String>,
 }
 
 impl LogicConceptDiagram {
@@ -30,8 +39,13 @@ impl LogicConceptDiagram {
                 description: None,
                 subsystems: Vec::new(),
                 components: Vec::new(),
+                modules: Vec::new(),
+                interfaces: Vec::new(),
             },
+            provide_relations: Vec::new(),
+            containments: Vec::new(),
             dependencies: Vec::new(),
+            submodule_ids: Vec::new(),
         }
     }
 
@@ -109,6 +123,12 @@ pub struct System {
     pub subsystems: Vec<Subsystem>,
     #[serde(default)]
     pub components: Vec<Component>,
+    /// Direct modules under system (for flexible hierarchy)
+    #[serde(default)]
+    pub modules: Vec<Module>,
+    /// Standalone interfaces at system level
+    #[serde(default)]
+    pub interfaces: Vec<Interface>,
 }
 
 impl System {
@@ -118,6 +138,12 @@ impl System {
         }
         for comp in &self.components {
             comp.collect_ids(ids);
+        }
+        for module in &self.modules {
+            module.collect_ids(ids);
+        }
+        for iface in &self.interfaces {
+            ids.push(&iface.id);
         }
     }
 
@@ -132,11 +158,26 @@ impl System {
                 return Some(name);
             }
         }
+        for module in &self.modules {
+            if let Some(name) = module.find_name(id) {
+                return Some(name);
+            }
+        }
+        // Check standalone interfaces
+        for iface in &self.interfaces {
+            if iface.id == id {
+                return Some(&iface.name);
+            }
+        }
         None
     }
 
     fn collect_interface_ids<'a>(&'a self) -> Vec<&'a str> {
-        let mut ids = Vec::new();
+        let mut ids: Vec<&'a str> = Vec::new();
+        // Standalone interfaces at system level
+        for iface in &self.interfaces {
+            ids.push(&iface.id);
+        }
         for comp in &self.components {
             comp.collect_interface_ids(&mut ids);
         }
@@ -145,10 +186,19 @@ impl System {
                 comp.collect_interface_ids(&mut ids);
             }
         }
+        for module in &self.modules {
+            module.collect_interface_ids(&mut ids);
+        }
         ids
     }
 
     fn find_interface(&self, id: &str) -> Option<&Interface> {
+        // Check standalone interfaces first
+        for iface in &self.interfaces {
+            if iface.id == id {
+                return Some(iface);
+            }
+        }
         for comp in &self.components {
             if let Some(iface) = comp.find_interface(id) {
                 return Some(iface);
@@ -159,6 +209,11 @@ impl System {
                 if let Some(iface) = comp.find_interface(id) {
                     return Some(iface);
                 }
+            }
+        }
+        for module in &self.modules {
+            if let Some(iface) = module.find_interface(id) {
+                return Some(iface);
             }
         }
         None
@@ -333,6 +388,24 @@ pub struct Dependency {
     pub from: String,
     /// Interface ID that is being used
     pub to: String,
+}
+
+/// Provide relation between element and interface
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProvideRelation {
+    /// Element ID that provides the interface
+    pub element_id: String,
+    /// Interface ID being provided
+    pub interface_id: String,
+}
+
+/// Element containment relationship (parent contains child)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ElementContainment {
+    /// Parent element ID
+    pub parent_id: String,
+    /// Child element ID
+    pub child_id: String,
 }
 
 // Backward compatibility aliases

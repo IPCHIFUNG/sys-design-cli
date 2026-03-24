@@ -45,7 +45,13 @@ mod tests {
 
     #[test]
     fn test_generate_concept_model_plantuml() {
-        let model = LogicArchitectureConceptModel::new("Test Model");
+        let mut model = LogicArchitectureConceptModel::new("Test Model");
+        // Add element types
+        model.add_element_type("system");
+        model.add_element_type("subsystem");
+        // Add containment
+        model.add_containment("system", "subsystem");
+
         let output = generate_concept_model_plantuml(&model);
 
         assert!(output.contains("@startuml"));

@@ -15,7 +15,7 @@ pub struct LogicArchitectureConceptModel {
 }
 
 impl LogicArchitectureConceptModel {
-    /// Create a new LogicArchitectureConceptModel with default hierarchy
+    /// Create a new LogicArchitectureConceptModel with empty hierarchy
     pub fn new(title: &str) -> Self {
         Self {
             version: "1.0".to_string(),
@@ -26,23 +26,7 @@ impl LogicArchitectureConceptModel {
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             },
-            hierarchy: HierarchyDefinition::default_hierarchy(),
-            element_types: Vec::new(),
-        }
-    }
-
-    /// Create with custom hierarchy
-    pub fn with_hierarchy(title: &str, hierarchy: HierarchyDefinition) -> Self {
-        Self {
-            version: "1.0".to_string(),
-            kind: ConceptModelKind::LogicArchitectureConceptModel,
-            metadata: ConceptMetadata {
-                title: title.to_string(),
-                description: None,
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-            },
-            hierarchy,
+            hierarchy: HierarchyDefinition::empty(),
             element_types: Vec::new(),
         }
     }
@@ -113,6 +97,50 @@ impl LogicArchitectureConceptModel {
             .map(|et| et.id.as_str())
             .collect()
     }
+
+    /// Check if a hierarchy level exists
+    pub fn has_level(&self, level_id: &str) -> bool {
+        let upper = level_id.to_uppercase();
+        self.hierarchy.levels.iter().any(|l| l.id == upper)
+    }
+
+    /// Check if a containment relationship exists
+    pub fn has_containment(&self, parent_type: &str, child_type: &str) -> bool {
+        let parent_upper = parent_type.to_uppercase();
+        let child_upper = child_type.to_uppercase();
+        if let Some(level) = self.get_level(&parent_upper) {
+            level.can_contain.iter().any(|c| c == &child_upper)
+        } else {
+            false
+        }
+    }
+
+    /// Add a containment relationship (parent can contain child)
+    /// Returns true if added, false if already exists
+    pub fn add_containment(&mut self, parent_type: &str, child_type: &str) -> bool {
+        let parent_upper = parent_type.to_uppercase();
+        let child_upper = child_type.to_uppercase();
+
+        // Find or create the parent level
+        let level = self.hierarchy.levels.iter_mut().find(|l| l.id == parent_upper);
+        if let Some(level) = level {
+            // Check if containment already exists
+            if level.can_contain.iter().any(|c| c == &child_upper) {
+                return false;
+            }
+            level.can_contain.push(child_upper);
+        } else {
+            // Create new level
+            self.hierarchy.levels.push(LevelDefinition {
+                id: parent_upper,
+                name: parent_type.to_string(),
+                description: None,
+                can_contain: vec![child_upper],
+            });
+        }
+        self.touch();
+        true
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -139,36 +167,10 @@ pub struct HierarchyDefinition {
 }
 
 impl HierarchyDefinition {
-    /// Create default hierarchy: System -> (Subsystem | Component) -> Module (recursive)
-    /// Layer is a virtual concept for organization, not a logical element type
-    pub fn default_hierarchy() -> Self {
+    /// Create empty hierarchy
+    pub fn empty() -> Self {
         Self {
-            levels: vec![
-                LevelDefinition {
-                    id: "SYSTEM".to_string(),
-                    name: "System".to_string(),
-                    description: Some("Root system element".to_string()),
-                    can_contain: vec!["SUBSYSTEM".to_string(), "COMPONENT".to_string()],
-                },
-                LevelDefinition {
-                    id: "SUBSYSTEM".to_string(),
-                    name: "Subsystem".to_string(),
-                    description: Some("Subsystem within a system".to_string()),
-                    can_contain: vec!["COMPONENT".to_string()],
-                },
-                LevelDefinition {
-                    id: "COMPONENT".to_string(),
-                    name: "Component".to_string(),
-                    description: Some("Component containing modules".to_string()),
-                    can_contain: vec!["MODULE".to_string()],
-                },
-                LevelDefinition {
-                    id: "MODULE".to_string(),
-                    name: "Module".to_string(),
-                    description: Some("Module (can be recursive)".to_string()),
-                    can_contain: vec!["MODULE".to_string()], // Recursive
-                },
-            ],
+            levels: Vec::new(),
         }
     }
 }
@@ -198,26 +200,39 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default_hierarchy() {
+    fn test_empty_hierarchy() {
         let model = LogicArchitectureConceptModel::new("Test Model");
+        assert!(!model.has_containment("SYSTEM", "SUBSYSTEM"));
+    }
 
+    #[test]
+    fn test_add_containment() {
+        let mut model = LogicArchitectureConceptModel::new("Test Model");
+
+        // Add containment
+        assert!(model.add_containment("system", "subsystem"));
+        assert!(model.has_containment("SYSTEM", "SUBSYSTEM"));
         assert!(model.can_contain("SYSTEM", "SUBSYSTEM"));
-        assert!(model.can_contain("SYSTEM", "COMPONENT"));
+
+        // Duplicate should fail
+        assert!(!model.add_containment("SYSTEM", "SUBSYSTEM"));
+
+        // Add more
+        assert!(model.add_containment("subsystem", "component"));
+        assert!(model.add_containment("component", "module"));
+
         assert!(model.can_contain("SUBSYSTEM", "COMPONENT"));
         assert!(model.can_contain("COMPONENT", "MODULE"));
-        assert!(model.can_contain("MODULE", "MODULE")); // Recursive
-
-        assert!(!model.can_contain("SYSTEM", "MODULE")); // Not directly
-        assert!(!model.can_contain("MODULE", "COMPONENT"));
     }
 
     #[test]
     fn test_get_level() {
-        let model = LogicArchitectureConceptModel::new("Test Model");
+        let mut model = LogicArchitectureConceptModel::new("Test Model");
+        model.add_containment("system", "subsystem");
 
         let system_level = model.get_level("SYSTEM");
         assert!(system_level.is_some());
-        assert_eq!(system_level.unwrap().name, "System");
+        assert_eq!(system_level.unwrap().name, "system");
     }
 
     #[test]

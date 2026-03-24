@@ -148,6 +148,136 @@ impl LogicOperations {
         Ok(())
     }
 
+    /// Add a module directly to the system (not in a component)
+    pub fn add_module_to_system(
+        diagram: &mut LogicConceptDiagram,
+        module_id: &str,
+        name: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<()> {
+        Self::check_id_uniqueness(diagram, module_id)?;
+
+        diagram.system.modules.push(Module {
+            id: module_id.to_string(),
+            name: name.unwrap_or(module_id).to_string(),
+            description: description.map(|s| s.to_string()),
+            interfaces: Vec::new(),
+            dependencies: Vec::new(),
+            modules: Vec::new(),
+        });
+        diagram.touch();
+        Ok(())
+    }
+
+    /// Add a submodule as standalone element (at system level, like modules)
+    pub fn add_submodule(
+        diagram: &mut LogicConceptDiagram,
+        submodule_id: &str,
+        name: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<()> {
+        Self::check_id_uniqueness(diagram, submodule_id)?;
+
+        // Add as a module at system level (submodules are just modules)
+        diagram.system.modules.push(Module {
+            id: submodule_id.to_string(),
+            name: name.unwrap_or(submodule_id).to_string(),
+            description: description.map(|s| s.to_string()),
+            interfaces: Vec::new(),
+            dependencies: Vec::new(),
+            modules: Vec::new(),
+        });
+        // Track this as a submodule
+        diagram.submodule_ids.push(submodule_id.to_string());
+        diagram.touch();
+        Ok(())
+    }
+
+    /// Add a standalone interface at system level
+    pub fn add_standalone_interface(
+        diagram: &mut LogicConceptDiagram,
+        interface_id: &str,
+        name: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<()> {
+        Self::check_interface_id_uniqueness(diagram, interface_id)?;
+
+        diagram.system.interfaces.push(Interface {
+            id: interface_id.to_string(),
+            name: name.unwrap_or(interface_id).to_string(),
+            description: description.map(|s| s.to_string()),
+        });
+        diagram.touch();
+        Ok(())
+    }
+
+    /// Add a provide relation (element provides interface)
+    pub fn add_provide_relation(
+        diagram: &mut LogicConceptDiagram,
+        element_id: &str,
+        interface_id: &str,
+    ) -> Result<()> {
+        // Verify element exists
+        let all_ids = diagram.all_element_ids();
+        let element_exists = all_ids.iter().any(|id| *id == element_id);
+        if !element_exists {
+            return Err(AppError::ElementNotFound(format!("element: {}", element_id)));
+        }
+
+        // Verify interface exists
+        if diagram.find_interface(interface_id).is_none() {
+            return Err(AppError::ElementNotFound(format!("interface: {}", interface_id)));
+        }
+
+        // Check for duplicate
+        if diagram.provide_relations.iter().any(|r| r.element_id == element_id && r.interface_id == interface_id) {
+            return Err(AppError::ElementAlreadyExists(format!(
+                "provide relation: {} -> {}",
+                element_id, interface_id
+            )));
+        }
+
+        diagram.provide_relations.push(crate::model::logic::concept::ProvideRelation {
+            element_id: element_id.to_string(),
+            interface_id: interface_id.to_string(),
+        });
+        diagram.touch();
+        Ok(())
+    }
+
+    /// Add an element containment relationship (parent contains child)
+    pub fn add_element_containment(
+        diagram: &mut LogicConceptDiagram,
+        parent_id: &str,
+        child_id: &str,
+    ) -> Result<()> {
+        // Verify parent exists
+        let all_ids = diagram.all_element_ids();
+        if !all_ids.iter().any(|id| *id == parent_id) {
+            return Err(AppError::ElementNotFound(format!("element: {}", parent_id)));
+        }
+
+        // Verify child exists
+        if !all_ids.iter().any(|id| *id == child_id) {
+            return Err(AppError::ElementNotFound(format!("element: {}", child_id)));
+        }
+
+        // Check for duplicate
+        if diagram.containments.iter().any(|c| c.parent_id == parent_id && c.child_id == child_id) {
+            return Err(AppError::ElementAlreadyExists(format!(
+                "containment: {} -> {}",
+                parent_id, child_id
+            )));
+        }
+
+        diagram.containments.push(crate::model::logic::concept::ElementContainment {
+            parent_id: parent_id.to_string(),
+            child_id: child_id.to_string(),
+        });
+        diagram.touch();
+        Ok(())
+    }
+
     // ==================== Interface Operations ====================
 
     /// Add an interface to a module
@@ -348,6 +478,36 @@ impl LogicOperations {
 
         // Search rest of the array
         Self::find_module_mut_recursive(rest, target_id)
+    }
+
+    /// Find a module anywhere in the system (system.modules, components, or nested)
+    #[allow(dead_code)]
+    fn find_module_in_system_mut<'a>(
+        diagram: &'a mut LogicConceptDiagram,
+        module_id: &str,
+    ) -> Option<&'a mut Module> {
+        // Search in system.modules
+        if let Some(module) = Self::find_module_mut_recursive(&mut diagram.system.modules, module_id) {
+            return Some(module);
+        }
+
+        // Search in components
+        for comp in &mut diagram.system.components {
+            if let Some(module) = Self::find_module_mut_recursive(&mut comp.modules, module_id) {
+                return Some(module);
+            }
+        }
+
+        // Search in subsystems
+        for sub in &mut diagram.system.subsystems {
+            for comp in &mut sub.components {
+                if let Some(module) = Self::find_module_mut_recursive(&mut comp.modules, module_id) {
+                    return Some(module);
+                }
+            }
+        }
+
+        None
     }
 }
 

@@ -130,28 +130,70 @@ fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
             LogicOperations::add_component(&mut diagram, &id, name.as_deref(), desc.as_deref())?;
             println!("{} component: {}", "Added".green(), id);
         }
-        LogicAddCommand::Module { component_id, id, name, desc, parent } => {
+        LogicAddCommand::Module { id, name, desc } => {
             check_element_type_allowed(&loaded_ref, "MODULE")?;
-            if let Some(parent_id) = parent {
-                LogicOperations::add_nested_module(
-                    &mut diagram, &component_id, &parent_id, &id,
-                    name.as_deref(), desc.as_deref()
-                )?;
-                println!("{} nested module: {} under {}", "Added".green(), id, parent_id);
-            } else {
-                LogicOperations::add_module(
-                    &mut diagram, &component_id, &id,
-                    name.as_deref(), desc.as_deref()
-                )?;
-                println!("{} module: {} in component {}", "Added".green(), id, component_id);
+            // Add module as standalone element (at system level)
+            LogicOperations::add_module_to_system(
+                &mut diagram, &id,
+                name.as_deref(), desc.as_deref()
+            )?;
+            println!("{} module: {}", "Added".green(), id);
+        }
+        LogicAddCommand::Submodule { id, name, desc } => {
+            check_element_type_allowed(&loaded_ref, "SUBMODULE")?;
+            // Add submodule as standalone element (at system level)
+            LogicOperations::add_submodule(
+                &mut diagram, &id,
+                name.as_deref(), desc.as_deref()
+            )?;
+            println!("{} submodule: {}", "Added".green(), id);
+        }
+        LogicAddCommand::Element { type_name, id, name, desc } => {
+            let type_upper = type_name.to_uppercase();
+            check_element_type_allowed(&loaded_ref, &type_upper)?;
+            // Route to appropriate add method based on type
+            match type_upper.as_str() {
+                "SUBSYSTEM" => {
+                    LogicOperations::add_subsystem(&mut diagram, &id, name.as_deref(), desc.as_deref())?;
+                    println!("{} subsystem: {}", "Added".green(), id);
+                }
+                "COMPONENT" => {
+                    LogicOperations::add_component(&mut diagram, &id, name.as_deref(), desc.as_deref())?;
+                    println!("{} component: {}", "Added".green(), id);
+                }
+                "MODULE" => {
+                    LogicOperations::add_module_to_system(&mut diagram, &id, name.as_deref(), desc.as_deref())?;
+                    println!("{} module: {}", "Added".green(), id);
+                }
+                "SUBMODULE" => {
+                    LogicOperations::add_submodule(&mut diagram, &id, name.as_deref(), desc.as_deref())?;
+                    println!("{} submodule: {}", "Added".green(), id);
+                }
+                _ => {
+                    return Err(AppError::InvalidOperation(format!(
+                        "Unknown element type: {}",
+                        type_name
+                    )));
+                }
             }
         }
-        LogicAddCommand::Interface { component_id, module_id, id, name, desc } => {
-            LogicOperations::add_interface(
-                &mut diagram, &component_id, &module_id, &id,
+        LogicAddCommand::Interface { id, name, desc } => {
+            // Add standalone interface at system level
+            LogicOperations::add_standalone_interface(
+                &mut diagram, &id,
                 name.as_deref(), desc.as_deref()
             )?;
             println!("{} interface: {}", "Added".green(), id);
+        }
+        LogicAddCommand::ProvideRelation { element_id, interface_id } => {
+            LogicOperations::add_provide_relation(&mut diagram, &element_id, &interface_id)?;
+            println!("{} provide relation: {} -> {}", "Added".green(), element_id, interface_id);
+        }
+        LogicAddCommand::Containment { parent_id, child_id } => {
+            // Validate containment follows concept model
+            validate_containment_against_concept_model(&loaded_ref, &parent_id, &child_id)?;
+            LogicOperations::add_element_containment(&mut diagram, &parent_id, &child_id)?;
+            println!("{} containment: {} -> {}", "Added".green(), parent_id, child_id);
         }
         LogicAddCommand::Dependency { component_id, module_id, interface_id } => {
             LogicOperations::add_dependency(
@@ -415,4 +457,146 @@ fn show_module(module: &crate::model::logic::concept::Module, indent: &str) {
     for m in &module.modules {
         show_module(m, &format!("{}  ", indent));
     }
+}
+
+/// Validate that a containment relationship is allowed by the concept model
+fn validate_containment_against_concept_model(
+    loaded: &LoadedLogic,
+    parent_id: &str,
+    child_id: &str,
+) -> Result<()> {
+    // Get concept model from workspace
+    let concept_model = match loaded {
+        LoadedLogic::Workspace { workspace, .. } => {
+            match &workspace.logic_architecture_concept_model {
+                Some(model) => model,
+                None => {
+                    // No concept model - can't validate
+                    return Err(AppError::InvalidOperation(
+                        "Logic Architecture Concept Model not initialized. Run 'concept-model init' first.".to_string()
+                    ));
+                }
+            }
+        }
+        LoadedLogic::Diagram(_) => {
+            // Standalone diagram - no concept model validation required
+            return Ok(());
+        }
+    };
+
+    // Get logic view to find element types
+    let logic_view = match loaded {
+        LoadedLogic::Workspace { workspace, has_logic_view } => {
+            if *has_logic_view {
+                workspace.logic_view.as_ref()
+            } else {
+                None
+            }
+        }
+        LoadedLogic::Diagram(d) => Some(d),
+    };
+
+    let logic = match logic_view {
+        Some(lv) => lv,
+        None => {
+            // No logic view yet, can't determine element types
+            return Ok(());
+        }
+    };
+
+    // Get parent and child element types
+    let parent_type = get_element_type(logic, parent_id);
+    let child_type = get_element_type(logic, child_id);
+
+    match (parent_type, child_type) {
+        (Some(parent_t), Some(child_t)) => {
+            // Check if concept model allows this containment
+            if !concept_model.has_containment(&parent_t, &child_t) {
+                return Err(AppError::InvalidOperation(format!(
+                    "Concept model does not allow '{}' to contain '{}'. Add containment with 'concept-model add containment {} {}'",
+                    parent_t, child_t, parent_t.to_lowercase(), child_t.to_lowercase()
+                )));
+            }
+            Ok(())
+        }
+        (None, _) => Err(AppError::ElementNotFound(format!("parent element: {}", parent_id))),
+        (_, None) => Err(AppError::ElementNotFound(format!("child element: {}", child_id))),
+    }
+}
+
+/// Get the element type for a given element ID
+fn get_element_type(
+    logic: &crate::model::logic::concept::LogicConceptDiagram,
+    id: &str,
+) -> Option<String> {
+    // Check if it's the system
+    if logic.system.id == id {
+        return Some("SYSTEM".to_string());
+    }
+
+    // Check subsystems
+    if logic.system.subsystems.iter().any(|s| s.id == id) {
+        return Some("SUBSYSTEM".to_string());
+    }
+
+    // Check components
+    if logic.system.components.iter().any(|c| c.id == id) {
+        return Some("COMPONENT".to_string());
+    }
+    for sub in &logic.system.subsystems {
+        if sub.components.iter().any(|c| c.id == id) {
+            return Some("COMPONENT".to_string());
+        }
+    }
+
+    // Check if it's explicitly marked as a submodule
+    if logic.submodule_ids.iter().any(|sid| sid == id) {
+        return Some("SUBMODULE".to_string());
+    }
+
+    // Check modules (at system level)
+    if logic.system.modules.iter().any(|m| m.id == id) {
+        return Some("MODULE".to_string());
+    }
+
+    // Check modules in components
+    for comp in &logic.system.components {
+        if let Some(is_nested) = find_module_type(&comp.modules, id) {
+            return Some(if is_nested { "SUBMODULE" } else { "MODULE" }.to_string());
+        }
+    }
+
+    // Check modules in subsystems
+    for sub in &logic.system.subsystems {
+        for comp in &sub.components {
+            if let Some(is_nested) = find_module_type(&comp.modules, id) {
+                return Some(if is_nested { "SUBMODULE" } else { "MODULE" }.to_string());
+            }
+        }
+    }
+
+    // Check if it's an interface
+    if logic.find_interface(id).is_some() {
+        return Some("INTERFACE".to_string());
+    }
+
+    None
+}
+
+/// Recursively find a module and return whether it's a nested module (submodule)
+/// Returns Some(true) if found as nested, Some(false) if found at top level, None if not found
+fn find_module_type(
+    modules: &[crate::model::logic::concept::Module],
+    id: &str,
+) -> Option<bool> {
+    for m in modules {
+        if m.id == id {
+            return Some(false); // Found at current level (not nested relative to this call)
+        }
+        // Check nested modules (these would be submodules)
+        if find_module_type(&m.modules, id).is_some() {
+            return Some(true); // Found nested, so it's a submodule
+        }
+    }
+    None
 }

@@ -8,10 +8,8 @@ use std::path::Path;
 
 pub fn execute(src: &Path, cmd: ConceptModelCommand) -> Result<()> {
     match cmd {
-        ConceptModelCommand::Init { title } => execute_init(src, title),
         ConceptModelCommand::Add(add_cmd) => execute_add(src, add_cmd),
         ConceptModelCommand::Remove(remove_cmd) => execute_remove(src, remove_cmd),
-        ConceptModelCommand::SetContainment { level_id, can_contain } => execute_set_containment(src, &level_id, can_contain),
         ConceptModelCommand::List => execute_list(src),
         ConceptModelCommand::Show { id } => execute_show(src, &id),
     }
@@ -20,6 +18,9 @@ pub fn execute(src: &Path, cmd: ConceptModelCommand) -> Result<()> {
 fn execute_add(src: &Path, cmd: ConceptModelAddCommand) -> Result<()> {
     match cmd {
         ConceptModelAddCommand::Element { type_name } => execute_add_element(src, &type_name),
+        ConceptModelAddCommand::Containment { parent, child } => {
+            execute_add_containment(src, &parent, &child)
+        }
         ConceptModelAddCommand::Level { id, name, desc, can_contain } => {
             execute_add_level(src, id, name, desc, can_contain)
         }
@@ -50,25 +51,6 @@ fn load_workspace(src: &Path) -> Result<Workspace> {
             Ok(workspace)
         }
     }
-}
-
-fn execute_init(src: &Path, title: Option<String>) -> Result<()> {
-    let mut workspace = load_workspace(src)?;
-
-    if workspace.logic_architecture_concept_model.is_some() {
-        println!("{}", "Concept model already exists. Use add-level to add levels.".yellow());
-        return Ok(());
-    }
-
-    let model_title = title.unwrap_or_else(|| "Logic Architecture Concept Model".to_string());
-    let model = LogicArchitectureConceptModel::new(&model_title);
-
-    workspace.logic_architecture_concept_model = Some(model);
-    workspace.touch();
-
-    YamlStore::save_workspace(src, &workspace)?;
-    println!("{} concept model with default hierarchy", "Initialized".green());
-    Ok(())
 }
 
 fn execute_add_level(
@@ -125,27 +107,36 @@ fn execute_remove_level(src: &Path, id: &str) -> Result<()> {
     Ok(())
 }
 
-fn execute_set_containment(src: &Path, level_id: &str, can_contain: Vec<String>) -> Result<()> {
+fn execute_add_containment(src: &Path, parent: &str, child: &str) -> Result<()> {
     let mut workspace = load_workspace(src)?;
 
-    let model = workspace.logic_architecture_concept_model.as_mut().ok_or_else(|| {
-        AppError::InvalidOperation("Concept model not found. Run 'init' first.".to_string())
-    })?;
-
-    let can_contain_str = can_contain.join(", ");
-
-    {
-        let level = model.hierarchy.levels.iter_mut().find(|l| l.id == level_id).ok_or_else(|| {
-            AppError::ElementNotFound(format!("level: {}", level_id))
-        })?;
-        level.can_contain = can_contain;
+    // Auto-initialize concept model if it doesn't exist
+    if workspace.logic_architecture_concept_model.is_none() {
+        let title = "Logic Architecture Concept Model".to_string();
+        let mut model = LogicArchitectureConceptModel::new(&title);
+        // Add "system" as a built-in element type
+        model.add_element_type("system");
+        workspace.logic_architecture_concept_model = Some(model);
+        println!("{} concept model", "Initialized".green());
     }
 
-    model.touch();
+    let model = workspace.logic_architecture_concept_model.as_mut().unwrap();
+
+    // Check that both parent and child element types exist
+    if !model.has_element_type(parent) {
+        return Err(AppError::ElementNotFound(format!("element type: {}", parent)));
+    }
+    if !model.has_element_type(child) {
+        return Err(AppError::ElementNotFound(format!("element type: {}", child)));
+    }
+
+    if !model.add_containment(parent, child) {
+        return Err(AppError::ElementAlreadyExists(format!("containment: {} -> {}", parent, child)));
+    }
     workspace.touch();
 
     YamlStore::save_workspace(src, &workspace)?;
-    println!("{} containment rules for level: {} -> [{}]", "Updated".green(), level_id, can_contain_str);
+    println!("{} containment: {} -> {}", "Added".green(), parent.to_uppercase(), child.to_uppercase());
     Ok(())
 }
 
@@ -155,7 +146,10 @@ fn execute_add_element(src: &Path, type_name: &str) -> Result<()> {
     // Auto-initialize concept model if it doesn't exist
     if workspace.logic_architecture_concept_model.is_none() {
         let title = "Logic Architecture Concept Model".to_string();
-        workspace.logic_architecture_concept_model = Some(LogicArchitectureConceptModel::new(&title));
+        let mut model = LogicArchitectureConceptModel::new(&title);
+        // Add "system" as a built-in element type
+        model.add_element_type("system");
+        workspace.logic_architecture_concept_model = Some(model);
         println!("{} concept model", "Initialized".green());
     }
 

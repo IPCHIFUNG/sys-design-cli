@@ -79,11 +79,21 @@ fn validate_containment_rules(
         .map(|l| &l.id)
         .collect();
 
-    // Check that all can_contain references point to valid levels
+    // Get all valid element type IDs
+    let valid_element_types: std::collections::HashSet<&String> = model
+        .element_types
+        .iter()
+        .map(|et| &et.id)
+        .collect();
+
+    // Check that all can_contain references point to valid levels or element types
     for level in &model.hierarchy.levels {
         for child_type in &level.can_contain {
             // Allow wildcard "*"
-            if child_type != "*" && !valid_levels.contains(child_type) {
+            if child_type != "*"
+                && !valid_levels.contains(child_type)
+                && !valid_element_types.contains(child_type)
+            {
                 result.add_error(ValidationError {
                     code: "S001".to_string(),
                     rule: "ValidContainmentReference".to_string(),
@@ -115,9 +125,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_validate_default_model() {
-        let model = LogicArchitectureConceptModel::new("Test Model");
+    fn test_validate_model_with_hierarchy() {
+        let mut model = LogicArchitectureConceptModel::new("Test Model");
+        // Add element types first
+        model.add_element_type("system");
+        model.add_element_type("subsystem");
+        // Add containment
+        model.add_containment("system", "subsystem");
         let result = validate(&model);
         assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_validate_empty_model() {
+        let model = LogicArchitectureConceptModel::new("Test Model");
+        let result = validate(&model);
+        // Empty model should have error C003: Hierarchy must have at least one level
+        assert!(!result.is_valid);
+        assert!(result.errors.iter().any(|e| e.code == "C003"));
     }
 }
