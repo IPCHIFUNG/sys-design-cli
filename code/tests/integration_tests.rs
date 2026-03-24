@@ -237,10 +237,10 @@ mod tests {
 
         assert!(plantuml.contains("@startuml"));
         assert!(plantuml.contains("@enduml"));
-        assert!(plantuml.contains("System(TEST_SYSTEM"));
-        assert!(plantuml.contains("Person_Ext(user"));
-        assert!(plantuml.contains("Person(admin"));
-        assert!(plantuml.contains("System_Ext(PAYMENT_GATEWAY"));
+        assert!(plantuml.contains("rectangle \"<<SYSTEM>>\\nTEST_SYSTEM\" as TEST_SYSTEM"));
+        assert!(plantuml.contains("actor \"<<EXTERNAL_ACTOR>>\\nUser\" as user"));
+        assert!(plantuml.contains("actor \"<<INTERNAL_ACTOR>>\\nAdmin\" as admin"));
+        assert!(plantuml.contains("rectangle \"<<EXTERNAL_SYSTEM>>\\nPayment Gateway\" as PAYMENT_GATEWAY"));
     }
 
     #[test]
@@ -249,9 +249,10 @@ mod tests {
         let plantuml = generate_plantuml(&diagram);
 
         // 检查关系是否生成
-        assert!(plantuml.contains("Rel(user, TEST_SYSTEM"));
-        assert!(plantuml.contains("Rel(admin, TEST_SYSTEM"));
-        assert!(plantuml.contains("Rel(TEST_SYSTEM, PAYMENT_GATEWAY"));
+        assert!(plantuml.contains("user ..> USER_API"));
+        assert!(plantuml.contains("USER_API --- TEST_SYSTEM"));
+        assert!(plantuml.contains("TEST_SYSTEM ..> PAYMENT_API"));
+        assert!(plantuml.contains("PAYMENT_API --- PAYMENT_GATEWAY"));
     }
 
     #[test]
@@ -259,7 +260,7 @@ mod tests {
         let diagram = create_test_diagram();
         let plantuml = generate_plantuml(&diagram);
 
-        assert!(plantuml.contains("LAYOUT_WITH_LEGEND"));
+        assert!(plantuml.contains("skinparam defaultTextAlignment center"));
     }
 
     // ==================== 操作测试 ====================

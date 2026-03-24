@@ -1,127 +1,68 @@
-use crate::model::c4::context::{ActorType, ContextDiagram, Protocol};
+use crate::model::c4::context::{ActorType, ContextDiagram};
 
 /// Generate PlantUML C4 Context diagram
 pub fn generate_plantuml(diagram: &ContextDiagram) -> String {
     let mut output = String::new();
 
     // Header
-    output.push_str("@startuml\n");
-    output.push_str("!include C4_Context.puml\n");
-    output.push_str("\n");
+    output.push_str("@startuml\n\n");
+    output.push_str("skinparam defaultTextAlignment center\n\n");
 
-    // Title
-    output.push_str(&format!("title {}\n", diagram.metadata.title));
+    // Group external systems
+    if !diagram.external_systems.is_empty() {
+        for ext in &diagram.external_systems {
+            output.push_str(&format!(
+                "rectangle \"<<EXTERNAL_SYSTEM>>\\n{}\" as {}\n",
+                ext.name, ext.id
+            ));
+        }
+        output.push_str("\n");
+    }
+
+    // Group actors
+    if !diagram.actors.is_empty() {
+        for actor in &diagram.actors {
+            let stereotype = match actor.actor_type {
+                ActorType::External => "EXTERNAL_ACTOR",
+                ActorType::Internal => "INTERNAL_ACTOR",
+            };
+            output.push_str(&format!(
+                "actor \"<<{}>>\\n{}\" as {}\n",
+                stereotype, actor.name, actor.id
+            ));
+        }
+        output.push_str("\n");
+    }
+
+    // Group interfaces (declared before system)
+    for iface in &diagram.interfaces {
+        output.push_str(&format!("interface {}\n", iface.id));
+    }
     output.push_str("\n");
 
     // System (center)
     output.push_str(&format!(
-        "System({}, \"{}\", \"{}\")\n",
-        diagram.system.id,
-        diagram.system.name,
-        diagram.system.description.as_deref().unwrap_or("")
+        "rectangle \"<<SYSTEM>>\\n{}\" as {}\n",
+        diagram.system.name, diagram.system.id
     ));
     output.push_str("\n");
 
-    // Actors
-    if !diagram.actors.is_empty() {
-        output.push_str("' Actors\n");
-        for actor in &diagram.actors {
-            let typ = match actor.actor_type {
-                ActorType::External => "Person_Ext",
-                ActorType::Internal => "Person",
-            };
-            output.push_str(&format!(
-                "{}({}, \"{}\", \"{}\")\n",
-                typ,
-                actor.id,
-                actor.name,
-                actor.description.as_deref().unwrap_or("")
-            ));
+    // Relationships
+    // 1. Actor/System uses interface: USER ..> INTERFACE
+    for usage in &diagram.interface_usages {
+        for iface_id in &usage.interfaces {
+            output.push_str(&format!("{} ..> {}\n", usage.actor, iface_id));
         }
-        output.push_str("\n");
-    }
-
-    // External Systems
-    if !diagram.external_systems.is_empty() {
-        output.push_str("' External Systems\n");
-        for ext in &diagram.external_systems {
-            output.push_str(&format!(
-                "System_Ext({}, \"{}\", \"{}\")\n",
-                ext.id,
-                ext.name,
-                ext.description.as_deref().unwrap_or("")
-            ));
-        }
-        output.push_str("\n");
-    }
-
-    // Interfaces (as notes or stereotypes)
-    if !diagram.interfaces.is_empty() {
-        output.push_str("' Interfaces\n");
-        for iface in &diagram.interfaces {
-            let protocol_str = match &iface.protocol {
-                Protocol::Rest => "REST",
-                Protocol::Grpc => "gRPC",
-                Protocol::Graphql => "GraphQL",
-                Protocol::WebSocket => "WebSocket",
-                Protocol::Mqtt => "MQTT",
-                Protocol::Amqp => "AMQP",
-                Protocol::Custom(s) => s,
-            };
-
-            // Find provider and users
-            let provider = diagram
-                .interface_providers
-                .iter()
-                .find(|p| p.interfaces.contains(&iface.id))
-                .map(|p| p.system.as_str());
-
-            let users: Vec<&str> = diagram
-                .interface_usages
-                .iter()
-                .filter(|u| u.interfaces.contains(&iface.id))
-                .map(|u| u.actor.as_str())
-                .collect();
-
-            if let Some(provider_id) = provider {
-                output.push_str(&format!(
-                    "note right of \"{}\" \"Interface: {}\\nProtocol: {}\\nUsed by: {}\"\n",
-                    provider_id,
-                    iface.name,
-                    protocol_str,
-                    if users.is_empty() {
-                        "none".to_string()
-                    } else {
-                        users.join(", ")
-                    }
-                ));
-                output.push_str("end note\n");
-            }
-        }
-        output.push_str("\n");
-    }
-
-    // Relationships (derived)
-    output.push_str("' Relationships (derived from interface usages)\n");
-    let relationships = diagram.derive_relationships();
-    for rel in relationships {
-        // Get interface name for label
-        let iface_name = diagram
-            .interfaces
-            .iter()
-            .find(|i| i.id == rel.via_interface)
-            .map(|i| i.name.as_str())
-            .unwrap_or(&rel.via_interface);
-
-        output.push_str(&format!(
-            "Rel({}, {}, \"uses\", \"{}\")\n",
-            rel.from, rel.to, iface_name
-        ));
     }
     output.push_str("\n");
 
-    // Layout
-    output.push_str("LAYOUT_WITH_LEGEND()\n");
+    // 2. Interface provided by system: INTERFACE --- SYSTEM
+    for provider in &diagram.interface_providers {
+        for iface_id in &provider.interfaces {
+            output.push_str(&format!("{} --- {}\n", iface_id, provider.system));
+        }
+    }
+    output.push_str("\n");
 
     // Footer
     output.push_str("@enduml\n");
@@ -132,7 +73,7 @@ pub fn generate_plantuml(diagram: &ContextDiagram) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::c4::context::{Actor, Interface, InterfaceProvider, InterfaceUsage};
+    use crate::model::c4::context::{Actor, Interface, InterfaceProvider, InterfaceUsage, Protocol};
 
     #[test]
     fn test_generate_plantuml() {
@@ -169,8 +110,11 @@ mod tests {
 
         assert!(output.contains("@startuml"));
         assert!(output.contains("@enduml"));
-        assert!(output.contains("System(TEST_SYSTEM"));
-        assert!(output.contains("Person_Ext(user"));
-        assert!(output.contains("Rel(user, TEST_SYSTEM"));
+        assert!(output.contains("<<SYSTEM>>"));
+        assert!(output.contains("rectangle \"<<SYSTEM>>\\nTest System\" as TEST_SYSTEM"));
+        assert!(output.contains("actor \"<<EXTERNAL_ACTOR>>\\nUser\" as user"));
+        assert!(output.contains("interface API"));
+        assert!(output.contains("user ..> API"));
+        assert!(output.contains("API --- TEST_SYSTEM"));
     }
 }
