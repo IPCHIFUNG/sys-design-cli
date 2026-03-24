@@ -1,5 +1,5 @@
 #!/bin/bash
-# 示例脚本：展示如何使用 sys-design.exe 生成4+1视图
+# 示例脚本：展示如何使用 sys-design 生成4+1视图
 # 本脚本禁止任何AI Agent自动修改
 
 set -e
