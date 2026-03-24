@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_derive_relationships() {
-        let mut diagram = ContextDiagram::new("test-system", "Test System");
+        let mut diagram = ContextDiagram::new("TEST_SYSTEM", "Test System");
 
         // Add an actor
         diagram.actors.push(Actor {
@@ -247,7 +247,7 @@ mod tests {
 
         // Add an interface
         diagram.interfaces.push(Interface {
-            id: "api".to_string(),
+            id: "API".to_string(),
             name: "API".to_string(),
             description: None,
             protocol: Protocol::Rest,
@@ -256,20 +256,20 @@ mod tests {
 
         // System provides the interface
         diagram.interface_providers.push(InterfaceProvider {
-            system: "test-system".to_string(),
-            interfaces: vec!["api".to_string()],
+            system: "TEST_SYSTEM".to_string(),
+            interfaces: vec!["API".to_string()],
         });
 
         // Actor uses the interface
         diagram.interface_usages.push(InterfaceUsage {
             actor: "user".to_string(),
-            interfaces: vec!["api".to_string()],
+            interfaces: vec!["API".to_string()],
         });
 
         let relationships = diagram.derive_relationships();
         assert_eq!(relationships.len(), 1);
         assert_eq!(relationships[0].from, "user");
-        assert_eq!(relationships[0].to, "test-system");
-        assert_eq!(relationships[0].via_interface, "api");
+        assert_eq!(relationships[0].to, "TEST_SYSTEM");
+        assert_eq!(relationships[0].via_interface, "API");
     }
 }

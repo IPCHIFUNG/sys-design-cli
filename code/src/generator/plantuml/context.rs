@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_generate_plantuml() {
-        let mut diagram = ContextDiagram::new("test-system", "Test System");
+        let mut diagram = ContextDiagram::new("TEST_SYSTEM", "Test System");
         diagram.system.name = "Test System".to_string();
         diagram.system.description = Some("A test system".to_string());
 
@@ -148,7 +148,7 @@ mod tests {
         });
 
         diagram.interfaces.push(Interface {
-            id: "api".to_string(),
+            id: "API".to_string(),
             name: "API".to_string(),
             description: Some("The API".to_string()),
             protocol: Protocol::Rest,
@@ -156,21 +156,21 @@ mod tests {
         });
 
         diagram.interface_providers.push(InterfaceProvider {
-            system: "test-system".to_string(),
-            interfaces: vec!["api".to_string()],
+            system: "TEST_SYSTEM".to_string(),
+            interfaces: vec!["API".to_string()],
         });
 
         diagram.interface_usages.push(InterfaceUsage {
             actor: "user".to_string(),
-            interfaces: vec!["api".to_string()],
+            interfaces: vec!["API".to_string()],
         });
 
         let output = generate_plantuml(&diagram);
 
         assert!(output.contains("@startuml"));
         assert!(output.contains("@enduml"));
-        assert!(output.contains("System(test-system"));
+        assert!(output.contains("System(TEST_SYSTEM"));
         assert!(output.contains("Person_Ext(user"));
-        assert!(output.contains("Rel(user, test-system"));
+        assert!(output.contains("Rel(user, TEST_SYSTEM"));
     }
 }
