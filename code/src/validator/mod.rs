@@ -1,7 +1,9 @@
 pub mod result;
 pub mod rules;
+pub mod logic_concept;
 
 use crate::model::c4::context::ContextDiagram;
+use crate::model::logic::concept::LogicConceptDiagram;
 use result::ValidationResult;
 
 pub use result::{ValidationResult as ValResult, Severity};
@@ -20,4 +22,9 @@ pub fn validate(diagram: &ContextDiagram) -> ValidationResult {
     result.merge(rules::naming::validate(diagram));
 
     result
+}
+
+/// Validate a LogicConceptDiagram
+pub fn validate_logic_concept(diagram: &LogicConceptDiagram) -> ValidationResult {
+    logic_concept::validate(diagram)
 }

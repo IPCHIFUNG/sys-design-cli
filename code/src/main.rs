@@ -10,11 +10,11 @@ fn main() -> Result<()> {
         Commands::ContextModel { src, command } => {
             commands::context_model::execute(&src, command)?;
         }
-        Commands::Generate { src, output } => {
-            commands::generate::execute(&src, output)?;
+        Commands::Generate { src, output, type_ } => {
+            commands::generate::execute(&src, output, type_)?;
         }
-        Commands::Validate { src, format } => {
-            commands::validate::execute(&src, format)?;
+        Commands::Validate { src, format, type_ } => {
+            commands::validate::execute(&src, format, type_)?;
         }
     }
 

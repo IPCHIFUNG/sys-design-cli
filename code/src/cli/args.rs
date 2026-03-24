@@ -29,6 +29,10 @@ pub enum Commands {
         /// Output file path (stdout if not specified)
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Diagram type
+        #[arg(short = 't', long, value_enum, default_value = "context")]
+        type_: DiagramType,
     },
 
     /// Validate the model
@@ -40,7 +44,17 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value = "text")]
         format: OutputFormat,
+
+        /// Diagram type
+        #[arg(short = 't', long, value_enum, default_value = "context")]
+        type_: DiagramType,
     },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum DiagramType {
+    Context,
+    LogicConcept,
 }
 
 #[derive(Subcommand)]
