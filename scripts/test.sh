@@ -19,7 +19,7 @@ run_unit_tests() {
 run_cli_tests() {
     echo "--- 运行 CLI 集成测试 ---"
 
-    local BINARY="$(pwd)/target/release/sys-design.exe"
+    local BINARY="$(pwd)/target/release/sys-design"
     if [ ! -f "$BINARY" ]; then
         echo "Release binary not found, building..."
         cargo build --release

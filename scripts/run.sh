@@ -8,7 +8,7 @@
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BINARY="$SCRIPT_DIR/../code/target/release/sys-design.exe"
+BINARY="$SCRIPT_DIR/../code/target/release/sys-design"
 
 # 检查二进制是否存在
 if [ ! -f "$BINARY" ]; then

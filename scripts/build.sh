@@ -10,10 +10,10 @@ if [ "$1" == "--release" ]; then
     echo "Building release..."
     cargo build --release
     echo ""
-    echo "Done! Binary: target/release/sys-design.exe"
+    echo "Done! Binary: target/release/sys-design"
 else
     echo "Building debug..."
     cargo build
     echo ""
-    echo "Done! Binary: target/debug/sys-design.exe"
+    echo "Done! Binary: target/debug/sys-design"
 fi
