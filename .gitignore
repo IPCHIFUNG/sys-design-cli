@@ -6,7 +6,7 @@ target/
 CLAUDE.md
 
 # Local test files
-test.yaml
+*.yaml
 
 # Build output
 output/

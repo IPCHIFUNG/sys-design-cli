@@ -11,12 +11,18 @@ impl Operations {
     // ==================== Add Operations ====================
 
     /// Add or update the system
+    /// Fails if system already exists with the same ID
     pub fn set_system(
         diagram: &mut ContextDiagram,
         id: &str,
         name: Option<&str>,
         description: Option<&str>,
     ) -> Result<()> {
+        // Check if system already exists with this ID
+        if !diagram.system.id.is_empty() && diagram.system.id == id {
+            return Err(AppError::ElementAlreadyExists(format!("system: {}", id)));
+        }
+
         diagram.system.id = id.to_string();
         if let Some(n) = name {
             diagram.system.name = n.to_string();
