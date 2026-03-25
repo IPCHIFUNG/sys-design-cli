@@ -8,8 +8,8 @@ pub fn validate(diagram: &ContextDiagram) -> ValidationResult {
 
     // ID pattern: UPPER_SNAKE_CASE (uppercase letters, numbers, underscores)
     let upper_snake_pattern = Regex::new(r"^[A-Z][A-Z0-9_]*$").unwrap();
-    // ID pattern: kebab-case (lowercase letters, numbers, hyphens) - for actors
-    let kebab_pattern = Regex::new(r"^[a-z][a-z0-9-]*$").unwrap();
+    // ID pattern: Chinese characters
+    let chinese_pattern = Regex::new(r"^[\u4e00-\u9fa5]+$").unwrap();
 
     // N001: System ID naming convention (UPPER_SNAKE_CASE)
     if !upper_snake_pattern.is_match(&diagram.system.id) && !diagram.system.id.is_empty() {
@@ -25,14 +25,17 @@ pub fn validate(diagram: &ContextDiagram) -> ValidationResult {
         });
     }
 
-    // N001: Actor ID naming convention (kebab-case)
+    // N001: Actor ID naming convention (UPPER_SNAKE_CASE or Chinese)
     for actor in &diagram.actors {
-        if !kebab_pattern.is_match(&actor.id) && !actor.id.is_empty() {
+        let is_valid = upper_snake_pattern.is_match(&actor.id)
+            || chinese_pattern.is_match(&actor.id)
+            || actor.id.is_empty();
+        if !is_valid {
             result.add_error(ValidationError {
                 code: "N001".to_string(),
                 rule: "ActorIdNaming".to_string(),
                 message: format!(
-                    "Actor ID '{}' does not follow kebab-case convention",
+                    "Actor ID '{}' does not follow UPPER_SNAKE_CASE or Chinese convention",
                     actor.id
                 ),
                 severity: Severity::Warning,
@@ -123,11 +126,6 @@ pub fn validate(diagram: &ContextDiagram) -> ValidationResult {
     }
 
     // N003: Reserved word check
-    const RESERVED_WORDS_LOWER: &[&str] = &[
-        "system", "actor", "interface", "external", "container", "component",
-        "null", "undefined", "true", "false", "default",
-    ];
-    // Uppercase reserved words for UPPER_SNAKE_CASE elements
     const RESERVED_WORDS_UPPER: &[&str] = &[
         "SYSTEM", "ACTOR", "INTERFACE", "EXTERNAL", "CONTAINER", "COMPONENT",
         "NULL", "UNDEFINED", "TRUE", "FALSE", "DEFAULT",
@@ -144,9 +142,9 @@ pub fn validate(diagram: &ContextDiagram) -> ValidationResult {
         });
     }
 
-    // Check actors (lowercase reserved words)
+    // Check actors (UPPER_SNAKE_CASE reserved words)
     for actor in &diagram.actors {
-        if RESERVED_WORDS_LOWER.contains(&actor.id.as_str()) {
+        if RESERVED_WORDS_UPPER.contains(&actor.id.as_str()) {
             result.add_error(ValidationError {
                 code: "N003".to_string(),
                 rule: "ReservedWord".to_string(),

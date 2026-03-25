@@ -1,5 +1,6 @@
 use crate::cli::args::{AddCommand, ContextModelCommand, ListElement, RemoveCommand};
-use crate::store::{LoadedContext, Operations, YamlStore};
+use crate::model::workspace::Workspace;
+use crate::store::{Operations, YamlStore};
 use crate::utils::error::Result;
 use colored::Colorize;
 use std::path::Path;
@@ -14,40 +15,18 @@ pub fn execute(src: &Path, cmd: ContextModelCommand) -> Result<()> {
 }
 
 fn execute_add(src: &Path, cmd: AddCommand) -> Result<()> {
-    // Load or create diagram (workspace-aware)
-    let (loaded, mut diagram, is_new_file) = if YamlStore::exists(src) {
-        let loaded = YamlStore::load_context_any(src)?;
-        let diagram = match &loaded {
-            LoadedContext::Workspace { workspace, has_context } => {
-                if *has_context {
-                    workspace.context_diagram.clone().unwrap()
-                } else {
-                    // Workspace exists but no context diagram - need to create one
-                    match &cmd {
-                        AddCommand::System { id, .. } => {
-                            let title = format!("{} Context Diagram", id);
-                            crate::model::c4::context::ContextDiagram::new(id, &title)
-                        }
-                        _ => {
-                            return Err(crate::utils::error::AppError::InvalidOperation(
-                                format!("Context diagram does not exist in workspace. Create it first with 'add system' command."),
-                            ));
-                        }
-                    }
-                }
-            }
-            LoadedContext::Diagram(d) => d.clone(),
-        };
-        (loaded, diagram, false)
+    // Load or create workspace
+    let (mut workspace, is_new_file) = if YamlStore::exists(src) {
+        (YamlStore::load_workspace_any(src)?, false)
     } else {
         // Only allow auto-create for System command
         match &cmd {
             AddCommand::System { id, .. } => {
-                // Auto-create with the given system ID
                 let title = format!("{} Context Diagram", id);
-                let new_diagram = crate::model::c4::context::ContextDiagram::new(id, &title);
+                let mut ws = Workspace::new(&title);
+                ws.context_diagram = Some(crate::model::c4::context::ContextDiagram::new(id, &title));
                 println!("{} new project file: {}", "Created".green(), src.display());
-                (LoadedContext::Diagram(new_diagram.clone()), new_diagram, true)
+                (ws, true)
             }
             _ => {
                 return Err(crate::utils::error::AppError::InvalidOperation(
@@ -57,10 +36,33 @@ fn execute_add(src: &Path, cmd: AddCommand) -> Result<()> {
         }
     };
 
+    // Get or create context diagram
+    let mut diagram = match &cmd {
+        AddCommand::System { .. } if is_new_file => {
+            workspace.context_diagram.clone().unwrap()
+        }
+        _ => {
+            if workspace.context_diagram.is_some() {
+                workspace.context_diagram.clone().unwrap()
+            } else {
+                // Workspace exists but no context diagram - need to create one
+                match &cmd {
+                    AddCommand::System { id, .. } => {
+                        let title = format!("{} Context Diagram", id);
+                        crate::model::c4::context::ContextDiagram::new(id, &title)
+                    }
+                    _ => {
+                        return Err(crate::utils::error::AppError::InvalidOperation(
+                            "Context diagram does not exist in workspace. Create it first with 'add system' command.".to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+    };
+
     match cmd {
         AddCommand::System { id, name, desc } => {
-            // Only call set_system if file already existed (not new)
-            // For new files, the diagram is already created with the system ID
             if is_new_file {
                 // Update name/description if provided
                 if name.is_some() || desc.is_some() {
@@ -149,24 +151,17 @@ fn execute_add(src: &Path, cmd: AddCommand) -> Result<()> {
         }
     }
 
-    YamlStore::save_context_any(src, &loaded, &diagram)?;
+    YamlStore::save_context_to_workspace(src, &mut workspace, &diagram)?;
     Ok(())
 }
 
 fn execute_remove(src: &Path, cmd: RemoveCommand) -> Result<()> {
-    let loaded = YamlStore::load_context_any(src)?;
-    let mut diagram = match &loaded {
-        LoadedContext::Workspace { workspace, has_context } => {
-            if *has_context {
-                workspace.context_diagram.clone().unwrap()
-            } else {
-                return Err(crate::utils::error::AppError::ElementNotFound(
-                    "context_diagram not found in workspace".to_string()
-                ));
-            }
-        }
-        LoadedContext::Diagram(d) => d.clone(),
-    };
+    let mut workspace = YamlStore::load_workspace_any(src)?;
+    let mut diagram = workspace.context_diagram.clone().ok_or_else(|| {
+        crate::utils::error::AppError::ElementNotFound(
+            "context_diagram not found in workspace".to_string()
+        )
+    })?;
 
     match cmd {
         RemoveCommand::Actor { id } => {
@@ -207,28 +202,21 @@ fn execute_remove(src: &Path, cmd: RemoveCommand) -> Result<()> {
         }
     }
 
-    YamlStore::save_context_any(src, &loaded, &diagram)?;
+    YamlStore::save_context_to_workspace(src, &mut workspace, &diagram)?;
     Ok(())
 }
 
-fn get_diagram_from_loaded(loaded: &LoadedContext) -> Result<crate::model::c4::context::ContextDiagram> {
-    match loaded {
-        LoadedContext::Workspace { workspace, has_context } => {
-            if *has_context {
-                Ok(workspace.context_diagram.clone().unwrap())
-            } else {
-                Err(crate::utils::error::AppError::ElementNotFound(
-                    "context_diagram not found in workspace".to_string()
-                ))
-            }
-        }
-        LoadedContext::Diagram(d) => Ok(d.clone()),
-    }
+fn get_diagram_from_workspace(workspace: &Workspace) -> Result<crate::model::c4::context::ContextDiagram> {
+    workspace.context_diagram.clone().ok_or_else(|| {
+        crate::utils::error::AppError::ElementNotFound(
+            "context_diagram not found in workspace".to_string()
+        )
+    })
 }
 
 fn execute_list(src: &Path, element: ListElement) -> Result<()> {
-    let loaded = YamlStore::load_context_any(src)?;
-    let diagram = get_diagram_from_loaded(&loaded)?;
+    let workspace = YamlStore::load_workspace_any(src)?;
+    let diagram = get_diagram_from_workspace(&workspace)?;
 
     match element {
         ListElement::System => {
@@ -306,8 +294,8 @@ fn execute_list(src: &Path, element: ListElement) -> Result<()> {
 }
 
 fn execute_show(src: &Path, id: &str) -> Result<()> {
-    let loaded = YamlStore::load_context_any(src)?;
-    let diagram = get_diagram_from_loaded(&loaded)?;
+    let workspace = YamlStore::load_workspace_any(src)?;
+    let diagram = get_diagram_from_workspace(&workspace)?;
 
     // Check system
     if diagram.system.id == id {

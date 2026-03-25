@@ -26,35 +26,9 @@ pub fn execute(src: &Path, format: OutputFormat, diagram_type: DiagramType) -> R
 }
 
 fn load_and_validate(src: &Path, diagram_type: &DiagramType) -> Result<ValidationResult> {
-    // First try to load as workspace (only if it has actual diagrams)
-    if let Ok(workspace) = YamlStore::load_workspace(src) {
-        // Only use workspace if it actually contains diagrams or concept model
-        if workspace.context_diagram.is_some()
-            || workspace.logic_architecture_concept_model.is_some()
-            || workspace.logic_view.is_some()
-        {
-            return validate_from_workspace(&workspace, diagram_type);
-        }
-    }
-
-    // Fallback: try loading as individual diagram type
-    let mut result = match diagram_type {
-        DiagramType::Context => {
-            let diagram = YamlStore::load_context(src)?;
-            validate(&diagram)
-        }
-        DiagramType::ConceptModel => {
-            let model = YamlStore::load_concept_model(src)?;
-            validate_concept_model(&model)
-        }
-        DiagramType::LogicView => {
-            let diagram = YamlStore::load_logic_view(src)?;
-            validate_logic_concept(&diagram)
-        }
-    };
-
-    result.is_valid = !result.errors.iter().any(|e| e.severity == Severity::Error);
-    Ok(result)
+    // Load as workspace (handles legacy formats via load_workspace_any)
+    let workspace = YamlStore::load_workspace_any(src)?;
+    validate_from_workspace(&workspace, diagram_type)
 }
 
 fn validate_from_workspace(
@@ -128,6 +102,11 @@ fn validate_workspace_unused_elements(
     // Collect used element types from logic view if it exists
     let mut used_types: Vec<&str> = Vec::new();
 
+    // SYSTEM is used if context_diagram has a system
+    if workspace.context_diagram.is_some() {
+        used_types.push("SYSTEM");
+    }
+
     if let Some(logic_view) = &workspace.logic_view {
         // Check for subsystems
         if !logic_view.system.subsystems.is_empty() {
@@ -145,11 +124,17 @@ fn validate_workspace_unused_elements(
             }
         }
 
-        // Check for modules
-        let has_modules = logic_view.system.components.iter().any(|c| !c.modules.is_empty())
+        // Check for modules (in system.modules, components, or subsystems)
+        let has_modules = !logic_view.system.modules.is_empty()
+            || logic_view.system.components.iter().any(|c| !c.modules.is_empty())
             || logic_view.system.subsystems.iter().any(|s| s.components.iter().any(|c| !c.modules.is_empty()));
         if has_modules {
             used_types.push("MODULE");
+        }
+
+        // Check for submodules (via submodule_ids)
+        if !logic_view.submodule_ids.is_empty() {
+            used_types.push("SUBMODULE");
         }
     }
 

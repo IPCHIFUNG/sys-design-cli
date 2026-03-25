@@ -1,7 +1,7 @@
 use crate::cli::args::{ConceptModelAddCommand, ConceptModelCommand, ConceptModelRemoveCommand};
 use crate::model::logic::concept_model::{LevelDefinition, LogicArchitectureConceptModel};
 use crate::model::workspace::Workspace;
-use crate::store::{LoadedLogic, YamlStore};
+use crate::store::YamlStore;
 use crate::utils::error::{AppError, Result};
 use colored::Colorize;
 use std::path::Path;
@@ -34,23 +34,12 @@ fn execute_remove(src: &Path, cmd: ConceptModelRemoveCommand) -> Result<()> {
     }
 }
 
-/// Load workspace from file, supporting both workspace format and standalone diagrams
+/// Load workspace from file, creating new if doesn't exist
 fn load_workspace(src: &Path) -> Result<Workspace> {
     if !YamlStore::exists(src) {
         return Ok(Workspace::new("New Project"));
     }
-
-    // Try to load as workspace-aware (handles both workspace and standalone diagrams)
-    let loaded = YamlStore::load_logic_any(src)?;
-    match loaded {
-        LoadedLogic::Workspace { workspace, .. } => Ok(workspace),
-        LoadedLogic::Diagram(diagram) => {
-            // Convert standalone logic diagram to workspace
-            let mut workspace = Workspace::new(&diagram.metadata.title);
-            workspace.logic_view = Some(diagram);
-            Ok(workspace)
-        }
-    }
+    YamlStore::load_workspace_any(src)
 }
 
 fn execute_add_level(

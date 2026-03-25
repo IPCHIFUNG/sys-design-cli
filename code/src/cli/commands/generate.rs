@@ -26,31 +26,9 @@ pub fn execute(src: &std::path::Path, output: Option<PathBuf>, diagram_type: Dia
 }
 
 fn load_and_generate(src: &std::path::Path, diagram_type: &DiagramType) -> Result<String> {
-    // First try to load as workspace (only if it has actual diagrams)
-    if let Ok(workspace) = YamlStore::load_workspace(src) {
-        // Only use workspace if it actually contains diagrams
-        if workspace.context_diagram.is_some()
-            || workspace.logic_architecture_concept_model.is_some()
-            || workspace.logic_view.is_some() {
-            return generate_from_workspace(&workspace, diagram_type);
-        }
-    }
-
-    // Fallback: try loading as individual diagram type
-    match diagram_type {
-        DiagramType::Context => {
-            let diagram = YamlStore::load_context(src)?;
-            Ok(generate_plantuml(&diagram))
-        }
-        DiagramType::ConceptModel => {
-            let model = YamlStore::load_concept_model(src)?;
-            Ok(generate_concept_model_plantuml(&model))
-        }
-        DiagramType::LogicView => {
-            let diagram = YamlStore::load_logic_view(src)?;
-            Ok(generate_logic_concept_plantuml(&diagram))
-        }
-    }
+    // Load as workspace (handles legacy formats via load_workspace_any)
+    let workspace = YamlStore::load_workspace_any(src)?;
+    generate_from_workspace(&workspace, diagram_type)
 }
 
 fn generate_from_workspace(workspace: &crate::model::workspace::Workspace, diagram_type: &DiagramType) -> Result<String> {
