@@ -407,8 +407,6 @@ pub enum LogicAddCommand {
 
     /// Add a dependency (module uses interface)
     Dependency {
-        /// Component ID
-        component_id: String,
         /// Module ID that has the dependency
         module_id: String,
         /// Interface ID that is being used

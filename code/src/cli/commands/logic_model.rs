@@ -181,12 +181,21 @@ fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
         LogicAddCommand::Containment { parent_id, child_id } => {
             // Validate containment follows concept model
             validate_containment_against_concept_model(&workspace, &parent_id, &child_id)?;
-            LogicOperations::add_element_containment(&mut diagram, &parent_id, &child_id)?;
+
+            // Get context diagram interfaces if available
+            let context_interface_ids: Vec<&str> = workspace.context_diagram
+                .as_ref()
+                .map(|ctx| ctx.interfaces.iter().map(|i| i.id.as_str()).collect())
+                .unwrap_or_default();
+
+            LogicOperations::add_element_containment_with_context(
+                &mut diagram, &parent_id, &child_id, &context_interface_ids
+            )?;
             println!("{} containment: {} -> {}", "Added".green(), parent_id, child_id);
         }
-        LogicAddCommand::Dependency { component_id, module_id, interface_id } => {
-            LogicOperations::add_dependency(
-                &mut diagram, &component_id, &module_id, &interface_id
+        LogicAddCommand::Dependency { module_id, interface_id } => {
+            LogicOperations::add_dependency_simple(
+                &mut diagram, &module_id, &interface_id
             )?;
             println!("{} dependency: {} -> {}", "Added".green(), module_id, interface_id);
         }
@@ -467,12 +476,16 @@ fn validate_containment_against_concept_model(
         }
     };
 
-    // Get parent and child element types
-    let parent_type = get_element_type(logic, parent_id);
-    let child_type = get_element_type(logic, child_id);
+    // Get parent and child element types (including context diagram interfaces)
+    let parent_type = get_element_type_with_context(logic, workspace, parent_id);
+    let child_type = get_element_type_with_context(logic, workspace, child_id);
 
     match (parent_type, child_type) {
         (Some(parent_t), Some(child_t)) => {
+            // Interface containment is always allowed (interfaces can have hierarchical relationships)
+            if parent_t == "INTERFACE" && child_t == "INTERFACE" {
+                return Ok(());
+            }
             // Check if concept model allows this containment
             if !concept_model.has_containment(&parent_t, &child_t) {
                 return Err(AppError::InvalidOperation(format!(
@@ -485,6 +498,27 @@ fn validate_containment_against_concept_model(
         (None, _) => Err(AppError::ElementNotFound(format!("parent element: {}", parent_id))),
         (_, None) => Err(AppError::ElementNotFound(format!("child element: {}", child_id))),
     }
+}
+
+/// Get the element type for a given element ID, including context diagram interfaces
+fn get_element_type_with_context(
+    logic: &crate::model::logic::concept::LogicConceptDiagram,
+    workspace: &Workspace,
+    id: &str,
+) -> Option<String> {
+    // First check in logic view
+    if let Some(t) = get_element_type(logic, id) {
+        return Some(t);
+    }
+
+    // Then check in context diagram interfaces
+    if let Some(context) = &workspace.context_diagram {
+        if context.interfaces.iter().any(|i| i.id == id) {
+            return Some("INTERFACE".to_string());
+        }
+    }
+
+    None
 }
 
 /// Get the element type for a given element ID
