@@ -219,7 +219,7 @@ impl LogicOperations {
     ) -> Result<()> {
         // Verify element exists
         let all_ids = diagram.all_element_ids();
-        let element_exists = all_ids.iter().any(|id| *id == element_id);
+        let element_exists = all_ids.contains(&element_id);
         if !element_exists {
             return Err(AppError::ElementNotFound(format!("element: {}", element_id)));
         }
@@ -253,12 +253,12 @@ impl LogicOperations {
     ) -> Result<()> {
         // Verify parent exists
         let all_ids = diagram.all_element_ids();
-        if !all_ids.iter().any(|id| *id == parent_id) {
+        if !all_ids.contains(&parent_id) {
             return Err(AppError::ElementNotFound(format!("element: {}", parent_id)));
         }
 
         // Verify child exists
-        if !all_ids.iter().any(|id| *id == child_id) {
+        if !all_ids.contains(&child_id) {
             return Err(AppError::ElementNotFound(format!("element: {}", child_id)));
         }
 
@@ -288,8 +288,8 @@ impl LogicOperations {
     ) -> Result<()> {
         // Verify parent exists in logic view (we allow external references for flexibility)
         let all_ids = diagram.all_element_ids();
-        let parent_in_logic = all_ids.iter().any(|id| *id == parent_id);
-        let child_in_logic = all_ids.iter().any(|id| *id == child_id);
+        let parent_in_logic = all_ids.contains(&parent_id);
+        let child_in_logic = all_ids.contains(&child_id);
 
         // Only error if neither element is in logic view
         // This allows cross-referencing with context diagram elements

@@ -22,7 +22,7 @@ pub fn generate_logic_concept_plantuml(diagram: &LogicConceptDiagram) -> String 
     }
 
     // Generate global dependencies
-    generate_global_dependencies(&mut output, &diagram);
+    generate_global_dependencies(&mut output, diagram);
 
     // Footer
     output.push_str("\n@enduml\n");
