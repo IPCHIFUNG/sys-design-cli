@@ -66,7 +66,7 @@ rectangle "<<MODULE>>\nMOTOR" as MOTOR {
     CURRENT_CTRL ..> ITF_IIC
 
 }
-
+ITF_MOTOR --- MOTOR
 ITF_MOTOR *.. ITF_POSITION_LOOP
 
 @enduml

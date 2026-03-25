@@ -50,9 +50,8 @@ pub enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Diagram type
-        #[arg(short = 't', long, value_enum, default_value = "context")]
-        type_: DiagramType,
+        #[command(subcommand)]
+        command: GenerateCommand,
     },
 
     /// Validate the model
@@ -68,6 +67,22 @@ pub enum Commands {
         /// Diagram type
         #[arg(short = 't', long, value_enum, default_value = "context")]
         type_: DiagramType,
+    },
+}
+
+/// Generate command subcommands
+#[derive(Subcommand)]
+pub enum GenerateCommand {
+    /// Generate context model diagram (C4 Context diagram)
+    ContextModelDiagram,
+
+    /// Generate concept model diagram (hierarchy rules)
+    ConceptModelDiagram,
+
+    /// Generate logic model diagram (concrete implementation)
+    LogicModelDiagram {
+        /// Root element ID to start from (optional, defaults to system root)
+        root: Option<String>,
     },
 }
 

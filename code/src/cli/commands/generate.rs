@@ -1,12 +1,12 @@
-use crate::cli::args::DiagramType;
+use crate::cli::args::GenerateCommand;
 use crate::generator::plantuml::{generate_logic_concept_plantuml, generate_plantuml, generate_concept_model_plantuml};
 use crate::store::YamlStore;
 use crate::utils::error::{AppError, Result};
 use colored::Colorize;
 use std::path::PathBuf;
 
-pub fn execute(src: &std::path::Path, output: Option<PathBuf>, diagram_type: DiagramType) -> Result<()> {
-    let plantuml = load_and_generate(src, &diagram_type)?;
+pub fn execute(src: &std::path::Path, output: Option<PathBuf>, command: &GenerateCommand) -> Result<()> {
+    let plantuml = load_and_generate(src, command)?;
 
     match output {
         Some(path) => {
@@ -25,15 +25,15 @@ pub fn execute(src: &std::path::Path, output: Option<PathBuf>, diagram_type: Dia
     Ok(())
 }
 
-fn load_and_generate(src: &std::path::Path, diagram_type: &DiagramType) -> Result<String> {
+fn load_and_generate(src: &std::path::Path, command: &GenerateCommand) -> Result<String> {
     // Load as workspace (handles legacy formats via load_workspace_any)
     let workspace = YamlStore::load_workspace_any(src)?;
-    generate_from_workspace(&workspace, diagram_type)
+    generate_from_workspace(&workspace, command)
 }
 
-fn generate_from_workspace(workspace: &crate::model::workspace::Workspace, diagram_type: &DiagramType) -> Result<String> {
-    match diagram_type {
-        DiagramType::Context => {
+fn generate_from_workspace(workspace: &crate::model::workspace::Workspace, command: &GenerateCommand) -> Result<String> {
+    match command {
+        GenerateCommand::ContextModelDiagram => {
             match &workspace.context_diagram {
                 Some(diagram) => Ok(generate_plantuml(diagram)),
                 None => Err(AppError::ElementNotFound(
@@ -41,7 +41,7 @@ fn generate_from_workspace(workspace: &crate::model::workspace::Workspace, diagr
                 )),
             }
         }
-        DiagramType::ConceptModel => {
+        GenerateCommand::ConceptModelDiagram => {
             match &workspace.logic_architecture_concept_model {
                 Some(model) => Ok(generate_concept_model_plantuml(model)),
                 None => Err(AppError::ElementNotFound(
@@ -49,9 +49,13 @@ fn generate_from_workspace(workspace: &crate::model::workspace::Workspace, diagr
                 )),
             }
         }
-        DiagramType::LogicView => {
+        GenerateCommand::LogicModelDiagram { root } => {
             match &workspace.logic_view {
-                Some(diagram) => Ok(generate_logic_concept_plantuml(diagram)),
+                Some(diagram) => {
+                    // TODO: Support root element filtering if root is specified
+                    let _ = root; // Currently unused, will be implemented later
+                    Ok(generate_logic_concept_plantuml(diagram))
+                }
                 None => Err(AppError::ElementNotFound(
                     "logic_view not found in workspace".to_string()
                 )),
