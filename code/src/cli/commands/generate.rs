@@ -1,6 +1,6 @@
 use crate::cli::args::GenerateCommand;
 use crate::generator::plantuml::{
-    generate_logic_concept_plantuml_with_root, generate_plantuml, generate_concept_model_plantuml,
+    generate_logic_concept_plantuml_with_workspace, generate_plantuml, generate_concept_model_plantuml,
 };
 use crate::store::YamlStore;
 use crate::utils::error::{AppError, Result};
@@ -52,7 +52,11 @@ fn generate_from_workspace(
             )),
         },
         GenerateCommand::LogicModelDiagram { root } => match &workspace.logic_view {
-            Some(diagram) => Ok(generate_logic_concept_plantuml_with_root(diagram, root.as_deref())),
+            Some(diagram) => Ok(generate_logic_concept_plantuml_with_workspace(
+                Some(workspace),
+                diagram,
+                root.as_deref(),
+            )),
             None => Err(AppError::ElementNotFound(
                 "logic_view not found in workspace".to_string(),
             )),
