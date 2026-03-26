@@ -219,7 +219,7 @@ impl LogicOperations {
     ) -> Result<()> {
         // Verify element exists
         let all_ids = diagram.all_element_ids();
-        let element_exists = all_ids.iter().any(|id| *id == element_id);
+        let element_exists = all_ids.contains(&element_id);
         if !element_exists {
             return Err(AppError::ElementNotFound(format!("element: {}", element_id)));
         }
@@ -253,13 +253,51 @@ impl LogicOperations {
     ) -> Result<()> {
         // Verify parent exists
         let all_ids = diagram.all_element_ids();
-        if !all_ids.iter().any(|id| *id == parent_id) {
+        if !all_ids.contains(&parent_id) {
             return Err(AppError::ElementNotFound(format!("element: {}", parent_id)));
         }
 
         // Verify child exists
-        if !all_ids.iter().any(|id| *id == child_id) {
+        if !all_ids.contains(&child_id) {
             return Err(AppError::ElementNotFound(format!("element: {}", child_id)));
+        }
+
+        // Check for duplicate
+        if diagram.containments.iter().any(|c| c.parent_id == parent_id && c.child_id == child_id) {
+            return Err(AppError::ElementAlreadyExists(format!(
+                "containment: {} -> {}",
+                parent_id, child_id
+            )));
+        }
+
+        diagram.containments.push(crate::model::logic::concept::ElementContainment {
+            parent_id: parent_id.to_string(),
+            child_id: child_id.to_string(),
+        });
+        diagram.touch();
+        Ok(())
+    }
+
+    /// Add an element containment relationship with context diagram support
+    /// This allows referencing interfaces from the context diagram
+    pub fn add_element_containment_with_context(
+        diagram: &mut LogicConceptDiagram,
+        parent_id: &str,
+        child_id: &str,
+        _context_interface_ids: &[&str],
+    ) -> Result<()> {
+        // Verify parent exists in logic view (we allow external references for flexibility)
+        let all_ids = diagram.all_element_ids();
+        let parent_in_logic = all_ids.contains(&parent_id);
+        let child_in_logic = all_ids.contains(&child_id);
+
+        // Only error if neither element is in logic view
+        // This allows cross-referencing with context diagram elements
+        if !parent_in_logic && !child_in_logic {
+            return Err(AppError::InvalidOperation(format!(
+                "At least one of parent '{}' or child '{}' must exist in logic view",
+                parent_id, child_id
+            )));
         }
 
         // Check for duplicate
@@ -412,6 +450,56 @@ impl LogicOperations {
 
         diagram.touch();
         Ok(())
+    }
+
+    /// Add a dependency to any module (in system.modules, components, or submodules)
+    pub fn add_dependency_simple(
+        diagram: &mut LogicConceptDiagram,
+        module_id: &str,
+        interface_id: &str,
+    ) -> Result<()> {
+        // Verify interface exists
+        if diagram.find_interface(interface_id).is_none() {
+            return Err(AppError::ElementNotFound(format!(
+                "interface: {}",
+                interface_id
+            )));
+        }
+
+        // Search in system.modules (including submodules)
+        if let Some(module) = Self::find_module_mut(&mut diagram.system.modules, module_id) {
+            if !module.dependencies.contains(&interface_id.to_string()) {
+                module.dependencies.push(interface_id.to_string());
+            }
+            diagram.touch();
+            return Ok(());
+        }
+
+        // Search in components
+        for component in &mut diagram.system.components {
+            if let Some(module) = Self::find_module_mut(&mut component.modules, module_id) {
+                if !module.dependencies.contains(&interface_id.to_string()) {
+                    module.dependencies.push(interface_id.to_string());
+                }
+                diagram.touch();
+                return Ok(());
+            }
+        }
+
+        // Search in subsystems
+        for subsystem in &mut diagram.system.subsystems {
+            for component in &mut subsystem.components {
+                if let Some(module) = Self::find_module_mut(&mut component.modules, module_id) {
+                    if !module.dependencies.contains(&interface_id.to_string()) {
+                        module.dependencies.push(interface_id.to_string());
+                    }
+                    diagram.touch();
+                    return Ok(());
+                }
+            }
+        }
+
+        Err(AppError::ElementNotFound(format!("module: {}", module_id)))
     }
 
     // ==================== Helper Functions ====================

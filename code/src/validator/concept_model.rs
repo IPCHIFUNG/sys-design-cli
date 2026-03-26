@@ -15,7 +15,7 @@ pub fn validate(model: &LogicArchitectureConceptModel) -> ValidationResult {
     }
 
     // Validate containment rules
-    validate_containment_rules(&mut result, &model);
+    validate_containment_rules(&mut result, model);
 
     result
 }

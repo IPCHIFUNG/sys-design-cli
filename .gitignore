@@ -7,6 +7,7 @@ CLAUDE.md
 
 # Local test files
 *.yaml
+*local*
 
 # Build output
 output/

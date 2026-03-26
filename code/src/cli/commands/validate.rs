@@ -26,35 +26,9 @@ pub fn execute(src: &Path, format: OutputFormat, diagram_type: DiagramType) -> R
 }
 
 fn load_and_validate(src: &Path, diagram_type: &DiagramType) -> Result<ValidationResult> {
-    // First try to load as workspace (only if it has actual diagrams)
-    if let Ok(workspace) = YamlStore::load_workspace(src) {
-        // Only use workspace if it actually contains diagrams or concept model
-        if workspace.context_diagram.is_some()
-            || workspace.logic_architecture_concept_model.is_some()
-            || workspace.logic_view.is_some()
-        {
-            return validate_from_workspace(&workspace, diagram_type);
-        }
-    }
-
-    // Fallback: try loading as individual diagram type
-    let mut result = match diagram_type {
-        DiagramType::Context => {
-            let diagram = YamlStore::load_context(src)?;
-            validate(&diagram)
-        }
-        DiagramType::ConceptModel => {
-            let model = YamlStore::load_concept_model(src)?;
-            validate_concept_model(&model)
-        }
-        DiagramType::LogicView => {
-            let diagram = YamlStore::load_logic_view(src)?;
-            validate_logic_concept(&diagram)
-        }
-    };
-
-    result.is_valid = !result.errors.iter().any(|e| e.severity == Severity::Error);
-    Ok(result)
+    // Load as workspace (handles legacy formats via load_workspace_any)
+    let workspace = YamlStore::load_workspace_any(src)?;
+    validate_from_workspace(&workspace, diagram_type)
 }
 
 fn validate_from_workspace(
@@ -128,6 +102,11 @@ fn validate_workspace_unused_elements(
     // Collect used element types from logic view if it exists
     let mut used_types: Vec<&str> = Vec::new();
 
+    // SYSTEM is used if context_diagram has a system
+    if workspace.context_diagram.is_some() {
+        used_types.push("SYSTEM");
+    }
+
     if let Some(logic_view) = &workspace.logic_view {
         // Check for subsystems
         if !logic_view.system.subsystems.is_empty() {
@@ -145,11 +124,17 @@ fn validate_workspace_unused_elements(
             }
         }
 
-        // Check for modules
-        let has_modules = logic_view.system.components.iter().any(|c| !c.modules.is_empty())
+        // Check for modules (in system.modules, components, or subsystems)
+        let has_modules = !logic_view.system.modules.is_empty()
+            || logic_view.system.components.iter().any(|c| !c.modules.is_empty())
             || logic_view.system.subsystems.iter().any(|s| s.components.iter().any(|c| !c.modules.is_empty()));
         if has_modules {
             used_types.push("MODULE");
+        }
+
+        // Check for submodules (via submodule_ids)
+        if !logic_view.submodule_ids.is_empty() {
+            used_types.push("SUBMODULE");
         }
     }
 
@@ -287,28 +272,28 @@ fn validate_hierarchy_conformance(
 
     // Check System level
     // System can contain: SUBSYSTEM, COMPONENT (based on default hierarchy)
-    if !logic_view.system.subsystems.is_empty() {
-        if !concept_model.can_contain("SYSTEM", "SUBSYSTEM") {
-            result.add_error(ValidationError {
-                code: "H001".to_string(),
-                rule: "HierarchyConformance".to_string(),
-                message: "System cannot contain Subsystem according to concept model".to_string(),
-                severity: Severity::Error,
-                location: Some("system.subsystems".to_string()),
-            });
-        }
+    if !logic_view.system.subsystems.is_empty()
+        && !concept_model.can_contain("SYSTEM", "SUBSYSTEM")
+    {
+        result.add_error(ValidationError {
+            code: "H001".to_string(),
+            rule: "HierarchyConformance".to_string(),
+            message: "System cannot contain Subsystem according to concept model".to_string(),
+            severity: Severity::Error,
+            location: Some("system.subsystems".to_string()),
+        });
     }
 
-    if !logic_view.system.components.is_empty() {
-        if !concept_model.can_contain("SYSTEM", "COMPONENT") {
-            result.add_error(ValidationError {
-                code: "H001".to_string(),
-                rule: "HierarchyConformance".to_string(),
-                message: "System cannot contain Component according to concept model".to_string(),
-                severity: Severity::Error,
-                location: Some("system.components".to_string()),
-            });
-        }
+    if !logic_view.system.components.is_empty()
+        && !concept_model.can_contain("SYSTEM", "COMPONENT")
+    {
+        result.add_error(ValidationError {
+            code: "H001".to_string(),
+            rule: "HierarchyConformance".to_string(),
+            message: "System cannot contain Component according to concept model".to_string(),
+            severity: Severity::Error,
+            location: Some("system.components".to_string()),
+        });
     }
 
     // Check for modules directly under system
@@ -330,19 +315,19 @@ fn validate_hierarchy_conformance(
 
     // Check Subsystem level
     for subsystem in &logic_view.system.subsystems {
-        if !subsystem.components.is_empty() {
-            if !concept_model.can_contain("SUBSYSTEM", "COMPONENT") {
-                result.add_error(ValidationError {
-                    code: "H001".to_string(),
-                    rule: "HierarchyConformance".to_string(),
-                    message: format!(
-                        "Subsystem '{}' cannot contain Component according to concept model",
-                        subsystem.id
-                    ),
-                    severity: Severity::Error,
-                    location: Some(format!("subsystems.{}.components", subsystem.id)),
-                });
-            }
+        if !subsystem.components.is_empty()
+            && !concept_model.can_contain("SUBSYSTEM", "COMPONENT")
+        {
+            result.add_error(ValidationError {
+                code: "H001".to_string(),
+                rule: "HierarchyConformance".to_string(),
+                message: format!(
+                    "Subsystem '{}' cannot contain Component according to concept model",
+                    subsystem.id
+                ),
+                severity: Severity::Error,
+                location: Some(format!("subsystems.{}.components", subsystem.id)),
+            });
         }
     }
 
@@ -364,19 +349,19 @@ fn validate_component_hierarchy(
 ) {
     use crate::validator::result::ValidationError;
 
-    if !component.modules.is_empty() {
-        if !concept_model.can_contain("COMPONENT", "MODULE") {
-            result.add_error(ValidationError {
-                code: "H001".to_string(),
-                rule: "HierarchyConformance".to_string(),
-                message: format!(
-                    "Component '{}' cannot contain Module according to concept model",
-                    component.id
-                ),
-                severity: Severity::Error,
-                location: Some(format!("components.{}.modules", component.id)),
-            });
-        }
+    if !component.modules.is_empty()
+        && !concept_model.can_contain("COMPONENT", "MODULE")
+    {
+        result.add_error(ValidationError {
+            code: "H001".to_string(),
+            rule: "HierarchyConformance".to_string(),
+            message: format!(
+                "Component '{}' cannot contain Module according to concept model",
+                component.id
+            ),
+            severity: Severity::Error,
+            location: Some(format!("components.{}.modules", component.id)),
+        });
     }
 
     // Check Module level (recursive)
@@ -396,19 +381,19 @@ fn validate_module_hierarchy(
 ) {
     use crate::validator::result::ValidationError;
 
-    if !module.modules.is_empty() {
-        if !concept_model.can_contain("MODULE", "MODULE") {
-            result.add_error(ValidationError {
-                code: "H001".to_string(),
-                rule: "HierarchyConformance".to_string(),
-                message: format!(
-                    "Module '{}' cannot contain nested Module according to concept model",
-                    module.id
-                ),
-                severity: Severity::Error,
-                location: Some(format!("{}.{}.modules", location, module.id)),
-            });
-        }
+    if !module.modules.is_empty()
+        && !concept_model.can_contain("MODULE", "MODULE")
+    {
+        result.add_error(ValidationError {
+            code: "H001".to_string(),
+            rule: "HierarchyConformance".to_string(),
+            message: format!(
+                "Module '{}' cannot contain nested Module according to concept model",
+                module.id
+            ),
+            severity: Severity::Error,
+            location: Some(format!("{}.{}.modules", location, module.id)),
+        });
     }
 
     // Recursively check nested modules

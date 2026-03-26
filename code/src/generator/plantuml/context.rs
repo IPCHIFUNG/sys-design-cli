@@ -16,7 +16,7 @@ pub fn generate_plantuml(diagram: &ContextDiagram) -> String {
                 ext.name, ext.id
             ));
         }
-        output.push_str("\n");
+        output.push('\n');
     }
 
     // Group actors
@@ -31,21 +31,21 @@ pub fn generate_plantuml(diagram: &ContextDiagram) -> String {
                 stereotype, actor.name, actor.id
             ));
         }
-        output.push_str("\n");
+        output.push('\n');
     }
 
     // Group interfaces (declared before system)
     for iface in &diagram.interfaces {
         output.push_str(&format!("interface {}\n", iface.id));
     }
-    output.push_str("\n");
+    output.push('\n');
 
     // System (center)
     output.push_str(&format!(
         "rectangle \"<<SYSTEM>>\\n{}\" as {}\n",
         diagram.system.name, diagram.system.id
     ));
-    output.push_str("\n");
+    output.push('\n');
 
     // Relationships
     // 1. Actor/System uses interface: USER ..> INTERFACE
@@ -54,7 +54,7 @@ pub fn generate_plantuml(diagram: &ContextDiagram) -> String {
             output.push_str(&format!("{} ..> {}\n", usage.actor, iface_id));
         }
     }
-    output.push_str("\n");
+    output.push('\n');
 
     // 2. Interface provided by system: INTERFACE --- SYSTEM
     for provider in &diagram.interface_providers {
@@ -62,7 +62,7 @@ pub fn generate_plantuml(diagram: &ContextDiagram) -> String {
             output.push_str(&format!("{} --- {}\n", iface_id, provider.system));
         }
     }
-    output.push_str("\n");
+    output.push('\n');
 
     // Footer
     output.push_str("@enduml\n");

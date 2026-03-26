@@ -1,5 +1,6 @@
 use crate::cli::args::{LogicAddCommand, LogicListElement, LogicModelCommand, LogicRemoveCommand};
-use crate::store::{LoadedLogic, LogicOperations, YamlStore};
+use crate::model::workspace::Workspace;
+use crate::store::{LogicOperations, YamlStore};
 use crate::utils::error::{AppError, Result};
 use colored::Colorize;
 use std::path::Path;
@@ -17,78 +18,42 @@ pub fn execute(src: &Path, cmd: LogicModelCommand) -> Result<()> {
 /// Fails if:
 /// 1. Concept model doesn't exist (run 'concept-model init' first)
 /// 2. Concept model exists but element type is not defined
-fn check_element_type_allowed(loaded: &LoadedLogic, type_name: &str) -> Result<()> {
-    match loaded {
-        LoadedLogic::Workspace { workspace, .. } => {
-            match &workspace.logic_architecture_concept_model {
-                None => {
-                    // No concept model - must initialize first
-                    return Err(AppError::InvalidOperation(
-                        "Logic Architecture Concept Model not initialized. Run 'concept-model init' first.".to_string()
-                    ));
-                }
-                Some(model) => {
-                    // Concept model exists - check if element type is defined
-                    if !model.has_element_type(type_name) {
-                        return Err(AppError::InvalidOperation(format!(
-                            "Element type '{}' is not defined in the concept model. Add it first with 'concept-model add element {}'",
-                            type_name.to_uppercase(),
-                            type_name
-                        )));
-                    }
-                }
+fn check_element_type_allowed(workspace: &Workspace, type_name: &str) -> Result<()> {
+    match &workspace.logic_architecture_concept_model {
+        None => {
+            // No concept model - must initialize first
+            Err(AppError::InvalidOperation(
+                "Logic Architecture Concept Model not initialized. Run 'concept-model init' first.".to_string()
+            ))
+        }
+        Some(model) => {
+            // Concept model exists - check if element type is defined
+            if !model.has_element_type(type_name) {
+                Err(AppError::InvalidOperation(format!(
+                    "Element type '{}' is not defined in the concept model. Add it first with 'concept-model add element {}'",
+                    type_name.to_uppercase(),
+                    type_name
+                )))
+            } else {
+                Ok(())
             }
         }
-        LoadedLogic::Diagram(_) => {
-            // Standalone diagram - no concept model validation required
-        }
     }
-    Ok(())
 }
 
 fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
-    // Load or create diagram (workspace-aware)
-    let (loaded, mut diagram) = if YamlStore::exists(src) {
-        let loaded = YamlStore::load_logic_any(src)?;
-        let diagram = match &loaded {
-            LoadedLogic::Workspace { workspace, has_logic_view } => {
-                if *has_logic_view {
-                    workspace.logic_view.clone().unwrap()
-                } else {
-                    // Workspace exists but no logic view - try to create one from context diagram
-                    if let Some(ref context) = workspace.context_diagram {
-                        // Use the context diagram's system ID for the logic view
-                        let system_id = &context.system.id;
-                        let title = format!("{} Logic Concept Diagram", system_id);
-                        crate::model::logic::concept::LogicConceptDiagram::new(system_id, &title)
-                    } else {
-                        // No context diagram either - need explicit system command
-                        match &cmd {
-                            LogicAddCommand::System { id, .. } => {
-                                let title = format!("{} Logic Concept Diagram", id);
-                                crate::model::logic::concept::LogicConceptDiagram::new(id, &title)
-                            }
-                            _ => {
-                                return Err(crate::utils::error::AppError::InvalidOperation(
-                                    format!("Logic view does not exist in workspace. Create it first with 'add system' command."),
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-            LoadedLogic::Diagram(d) => d.clone(),
-        };
-        (loaded, diagram)
+    // Load or create workspace
+    let (mut workspace, is_new_file) = if YamlStore::exists(src) {
+        (YamlStore::load_workspace_any(src)?, false)
     } else {
         // Only allow auto-create for System command
         match &cmd {
             LogicAddCommand::System { id, .. } => {
-                // Auto-create with the given system ID
                 let title = format!("{} Logic Concept Diagram", id);
-                let new_diagram = crate::model::logic::concept::LogicConceptDiagram::new(id, &title);
+                let mut ws = Workspace::new(&title);
+                ws.logic_view = Some(crate::model::logic::concept::LogicConceptDiagram::new(id, &title));
                 println!("{} new project file: {}", "Created".green(), src.display());
-                (LoadedLogic::Diagram(new_diagram.clone()), new_diagram)
+                (ws, true)
             }
             _ => {
                 return Err(crate::utils::error::AppError::InvalidOperation(
@@ -98,11 +63,35 @@ fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
         }
     };
 
-    // Keep a reference to loaded for validation
-    let loaded_ref = if YamlStore::exists(src) {
-        YamlStore::load_logic_any(src)?
-    } else {
-        LoadedLogic::Diagram(diagram.clone())
+    // Get or create logic view
+    let mut diagram = match &cmd {
+        LogicAddCommand::System { .. } if is_new_file => {
+            workspace.logic_view.clone().unwrap()
+        }
+        _ => {
+            if workspace.logic_view.is_some() {
+                workspace.logic_view.clone().unwrap()
+            } else {
+                // Workspace exists but no logic view - try to create one from context diagram
+                if let Some(ref context) = workspace.context_diagram {
+                    let system_id = &context.system.id;
+                    let title = format!("{} Logic Concept Diagram", system_id);
+                    crate::model::logic::concept::LogicConceptDiagram::new(system_id, &title)
+                } else {
+                    match &cmd {
+                        LogicAddCommand::System { id, .. } => {
+                            let title = format!("{} Logic Concept Diagram", id);
+                            crate::model::logic::concept::LogicConceptDiagram::new(id, &title)
+                        }
+                        _ => {
+                            return Err(crate::utils::error::AppError::InvalidOperation(
+                                "Logic view does not exist in workspace. Create it first with 'add system' command.".to_string(),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
     };
 
     match cmd {
@@ -115,12 +104,12 @@ fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
             println!("{} system: {}", "Added/Updated".green(), id);
         }
         LogicAddCommand::Subsystem { id, name, desc } => {
-            check_element_type_allowed(&loaded_ref, "SUBSYSTEM")?;
+            check_element_type_allowed(&workspace, "SUBSYSTEM")?;
             LogicOperations::add_subsystem(&mut diagram, &id, name.as_deref(), desc.as_deref())?;
             println!("{} subsystem: {}", "Added".green(), id);
         }
         LogicAddCommand::Component { id, name, desc, subsystem } => {
-            check_element_type_allowed(&loaded_ref, "COMPONENT")?;
+            check_element_type_allowed(&workspace, "COMPONENT")?;
             // For now, add to system.components directly (subsystem support would require extending LogicOperations)
             if subsystem.is_some() {
                 return Err(AppError::InvalidOperation(
@@ -131,7 +120,7 @@ fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
             println!("{} component: {}", "Added".green(), id);
         }
         LogicAddCommand::Module { id, name, desc } => {
-            check_element_type_allowed(&loaded_ref, "MODULE")?;
+            check_element_type_allowed(&workspace, "MODULE")?;
             // Add module as standalone element (at system level)
             LogicOperations::add_module_to_system(
                 &mut diagram, &id,
@@ -140,7 +129,7 @@ fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
             println!("{} module: {}", "Added".green(), id);
         }
         LogicAddCommand::Submodule { id, name, desc } => {
-            check_element_type_allowed(&loaded_ref, "SUBMODULE")?;
+            check_element_type_allowed(&workspace, "SUBMODULE")?;
             // Add submodule as standalone element (at system level)
             LogicOperations::add_submodule(
                 &mut diagram, &id,
@@ -150,7 +139,7 @@ fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
         }
         LogicAddCommand::Element { type_name, id, name, desc } => {
             let type_upper = type_name.to_uppercase();
-            check_element_type_allowed(&loaded_ref, &type_upper)?;
+            check_element_type_allowed(&workspace, &type_upper)?;
             // Route to appropriate add method based on type
             match type_upper.as_str() {
                 "SUBSYSTEM" => {
@@ -191,13 +180,22 @@ fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
         }
         LogicAddCommand::Containment { parent_id, child_id } => {
             // Validate containment follows concept model
-            validate_containment_against_concept_model(&loaded_ref, &parent_id, &child_id)?;
-            LogicOperations::add_element_containment(&mut diagram, &parent_id, &child_id)?;
+            validate_containment_against_concept_model(&workspace, &parent_id, &child_id)?;
+
+            // Get context diagram interfaces if available
+            let context_interface_ids: Vec<&str> = workspace.context_diagram
+                .as_ref()
+                .map(|ctx| ctx.interfaces.iter().map(|i| i.id.as_str()).collect())
+                .unwrap_or_default();
+
+            LogicOperations::add_element_containment_with_context(
+                &mut diagram, &parent_id, &child_id, &context_interface_ids
+            )?;
             println!("{} containment: {} -> {}", "Added".green(), parent_id, child_id);
         }
-        LogicAddCommand::Dependency { component_id, module_id, interface_id } => {
-            LogicOperations::add_dependency(
-                &mut diagram, &component_id, &module_id, &interface_id
+        LogicAddCommand::Dependency { module_id, interface_id } => {
+            LogicOperations::add_dependency_simple(
+                &mut diagram, &module_id, &interface_id
             )?;
             println!("{} dependency: {} -> {}", "Added".green(), module_id, interface_id);
         }
@@ -207,28 +205,21 @@ fn execute_add(src: &Path, cmd: LogicAddCommand) -> Result<()> {
         }
     }
 
-    YamlStore::save_logic_any(src, &loaded, &diagram)?;
+    YamlStore::save_logic_to_workspace(src, &mut workspace, &diagram)?;
     Ok(())
 }
 
-fn get_diagram_from_loaded(loaded: &LoadedLogic) -> Result<crate::model::logic::concept::LogicConceptDiagram> {
-    match loaded {
-        LoadedLogic::Workspace { workspace, has_logic_view } => {
-            if *has_logic_view {
-                Ok(workspace.logic_view.clone().unwrap())
-            } else {
-                Err(crate::utils::error::AppError::ElementNotFound(
-                    "logic_view not found in workspace".to_string()
-                ))
-            }
-        }
-        LoadedLogic::Diagram(d) => Ok(d.clone()),
-    }
+fn get_diagram_from_workspace(workspace: &Workspace) -> Result<crate::model::logic::concept::LogicConceptDiagram> {
+    workspace.logic_view.clone().ok_or_else(|| {
+        crate::utils::error::AppError::ElementNotFound(
+            "logic_view not found in workspace".to_string()
+        )
+    })
 }
 
 fn execute_remove(src: &Path, cmd: LogicRemoveCommand) -> Result<()> {
-    let loaded = YamlStore::load_logic_any(src)?;
-    let mut diagram = get_diagram_from_loaded(&loaded)?;
+    let mut workspace = YamlStore::load_workspace_any(src)?;
+    let mut diagram = get_diagram_from_workspace(&workspace)?;
 
     match cmd {
         LogicRemoveCommand::Subsystem { id } => {
@@ -253,13 +244,13 @@ fn execute_remove(src: &Path, cmd: LogicRemoveCommand) -> Result<()> {
         }
     }
 
-    YamlStore::save_logic_any(src, &loaded, &diagram)?;
+    YamlStore::save_logic_to_workspace(src, &mut workspace, &diagram)?;
     Ok(())
 }
 
 fn execute_list(src: &Path, element: LogicListElement) -> Result<()> {
-    let loaded = YamlStore::load_logic_any(src)?;
-    let diagram = get_diagram_from_loaded(&loaded)?;
+    let workspace = YamlStore::load_workspace_any(src)?;
+    let diagram = get_diagram_from_workspace(&workspace)?;
 
     match element {
         LogicListElement::System => {
@@ -374,8 +365,8 @@ fn list_module_deps(
 }
 
 fn execute_show(src: &Path, id: &str) -> Result<()> {
-    let loaded = YamlStore::load_logic_any(src)?;
-    let diagram = get_diagram_from_loaded(&loaded)?;
+    let workspace = YamlStore::load_workspace_any(src)?;
+    let diagram = get_diagram_from_workspace(&workspace)?;
 
     // Check system
     if diagram.system.id == id {
@@ -461,42 +452,23 @@ fn show_module(module: &crate::model::logic::concept::Module, indent: &str) {
 
 /// Validate that a containment relationship is allowed by the concept model
 fn validate_containment_against_concept_model(
-    loaded: &LoadedLogic,
+    workspace: &Workspace,
     parent_id: &str,
     child_id: &str,
 ) -> Result<()> {
     // Get concept model from workspace
-    let concept_model = match loaded {
-        LoadedLogic::Workspace { workspace, .. } => {
-            match &workspace.logic_architecture_concept_model {
-                Some(model) => model,
-                None => {
-                    // No concept model - can't validate
-                    return Err(AppError::InvalidOperation(
-                        "Logic Architecture Concept Model not initialized. Run 'concept-model init' first.".to_string()
-                    ));
-                }
-            }
-        }
-        LoadedLogic::Diagram(_) => {
-            // Standalone diagram - no concept model validation required
-            return Ok(());
+    let concept_model = match &workspace.logic_architecture_concept_model {
+        Some(model) => model,
+        None => {
+            // No concept model - can't validate
+            return Err(AppError::InvalidOperation(
+                "Logic Architecture Concept Model not initialized. Run 'concept-model init' first.".to_string()
+            ));
         }
     };
 
     // Get logic view to find element types
-    let logic_view = match loaded {
-        LoadedLogic::Workspace { workspace, has_logic_view } => {
-            if *has_logic_view {
-                workspace.logic_view.as_ref()
-            } else {
-                None
-            }
-        }
-        LoadedLogic::Diagram(d) => Some(d),
-    };
-
-    let logic = match logic_view {
+    let logic = match &workspace.logic_view {
         Some(lv) => lv,
         None => {
             // No logic view yet, can't determine element types
@@ -504,12 +476,16 @@ fn validate_containment_against_concept_model(
         }
     };
 
-    // Get parent and child element types
-    let parent_type = get_element_type(logic, parent_id);
-    let child_type = get_element_type(logic, child_id);
+    // Get parent and child element types (including context diagram interfaces)
+    let parent_type = get_element_type_with_context(logic, workspace, parent_id);
+    let child_type = get_element_type_with_context(logic, workspace, child_id);
 
     match (parent_type, child_type) {
         (Some(parent_t), Some(child_t)) => {
+            // Interface containment is always allowed (interfaces can have hierarchical relationships)
+            if parent_t == "INTERFACE" && child_t == "INTERFACE" {
+                return Ok(());
+            }
             // Check if concept model allows this containment
             if !concept_model.has_containment(&parent_t, &child_t) {
                 return Err(AppError::InvalidOperation(format!(
@@ -522,6 +498,27 @@ fn validate_containment_against_concept_model(
         (None, _) => Err(AppError::ElementNotFound(format!("parent element: {}", parent_id))),
         (_, None) => Err(AppError::ElementNotFound(format!("child element: {}", child_id))),
     }
+}
+
+/// Get the element type for a given element ID, including context diagram interfaces
+fn get_element_type_with_context(
+    logic: &crate::model::logic::concept::LogicConceptDiagram,
+    workspace: &Workspace,
+    id: &str,
+) -> Option<String> {
+    // First check in logic view
+    if let Some(t) = get_element_type(logic, id) {
+        return Some(t);
+    }
+
+    // Then check in context diagram interfaces
+    if let Some(context) = &workspace.context_diagram {
+        if context.interfaces.iter().any(|i| i.id == id) {
+            return Some("INTERFACE".to_string());
+        }
+    }
+
+    None
 }
 
 /// Get the element type for a given element ID

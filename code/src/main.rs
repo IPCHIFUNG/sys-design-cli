@@ -16,8 +16,8 @@ fn main() -> Result<()> {
         Commands::ConceptModel { src, command } => {
             commands::concept_model::execute(&src, command)?;
         }
-        Commands::Generate { src, output, type_ } => {
-            commands::generate::execute(&src, output, type_)?;
+        Commands::Generate { src, output, command } => {
+            commands::generate::execute(&src, output, &command)?;
         }
         Commands::Validate { src, format, type_ } => {
             commands::validate::execute(&src, format, type_)?;

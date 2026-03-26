@@ -13,7 +13,7 @@ pub fn generate_concept_model_plantuml(model: &LogicArchitectureConceptModel) ->
         output.push_str(&format!("rectangle {}\n", level.id));
     }
 
-    output.push_str("\n");
+    output.push('\n');
 
     // Draw containment relationships
     for level in &model.hierarchy.levels {
@@ -28,7 +28,7 @@ pub fn generate_concept_model_plantuml(model: &LogicArchitectureConceptModel) ->
     // Handle recursive relationship (SUBMODULE can contain SUBMODULE)
     if let Some(submodule_level) = model.hierarchy.levels.iter().find(|l| l.id == "SUBMODULE") {
         if submodule_level.can_contain.contains(&"SUBMODULE".to_string()) {
-            output.push_str("\n");
+            output.push('\n');
             output.push_str("SUBMODULE o.. SUBMODULE\n");
         }
     }
