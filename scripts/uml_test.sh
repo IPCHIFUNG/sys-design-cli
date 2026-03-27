@@ -11,84 +11,84 @@ NC='\033[0m' # No Color
 
 rm -f test.yaml
 
-./scripts/run.sh context-model -s test.yaml add system SNP -n "SNP System" -d "SNP 核心系统"
+./scripts/run.sh context-model -m test.yaml add system SNP -n "SNP System" -d "SNP 核心系统"
 
-./scripts/run.sh context-model -s test.yaml add actor USER -n "User" -t "internal"
-./scripts/run.sh context-model -s test.yaml add external-system BD_SOFT -n "BD Soft" -t "REST API"
-./scripts/run.sh context-model -s test.yaml add external-system CHIP -n "Chip" -t "Hardware"
-./scripts/run.sh context-model -s test.yaml add external-system CHIP_CTRL -n "Chip Controller" -t "Hardware"
+./scripts/run.sh context-model -m test.yaml add actor USER -n "User" -t "internal"
+./scripts/run.sh context-model -m test.yaml add external-system BD_SOFT -n "BD Soft" -t "REST API"
+./scripts/run.sh context-model -m test.yaml add external-system CHIP -n "Chip" -t "Hardware"
+./scripts/run.sh context-model -m test.yaml add external-system CHIP_CTRL -n "Chip Controller" -t "Hardware"
 
-./scripts/run.sh context-model -s test.yaml add interface ITF_OMU -n "SNP OMU" -p rest
-./scripts/run.sh context-model -s test.yaml add interface ITF_SNP_CFG -n "SNP Config Interface" -p rest
-./scripts/run.sh context-model -s test.yaml add interface ITF_DATA_PLANE -n "Data Plane Interface" -p grpc
-./scripts/run.sh context-model -s test.yaml add interface ITF_CHIP_CFG -n "Chip Config Interface" -p rest
+./scripts/run.sh context-model -m test.yaml add interface ITF_OMU -n "SNP OMU" -p rest
+./scripts/run.sh context-model -m test.yaml add interface ITF_SNP_CFG -n "SNP Config Interface" -p rest
+./scripts/run.sh context-model -m test.yaml add interface ITF_DATA_PLANE -n "Data Plane Interface" -p grpc
+./scripts/run.sh context-model -m test.yaml add interface ITF_CHIP_CFG -n "Chip Config Interface" -p rest
 
-./scripts/run.sh context-model -s test.yaml add provide-relation SNP ITF_OMU
-./scripts/run.sh context-model -s test.yaml add provide-relation SNP ITF_SNP_CFG
-./scripts/run.sh context-model -s test.yaml add provide-relation SNP ITF_DATA_PLANE
-./scripts/run.sh context-model -s test.yaml add provide-relation CHIP_CTRL ITF_CHIP_CFG
+./scripts/run.sh context-model -m test.yaml add provide-relation SNP ITF_OMU
+./scripts/run.sh context-model -m test.yaml add provide-relation SNP ITF_SNP_CFG
+./scripts/run.sh context-model -m test.yaml add provide-relation SNP ITF_DATA_PLANE
+./scripts/run.sh context-model -m test.yaml add provide-relation CHIP_CTRL ITF_CHIP_CFG
 
-./scripts/run.sh context-model -s test.yaml add interface-usage USER ITF_OMU
-./scripts/run.sh context-model -s test.yaml add interface-usage BD_SOFT ITF_SNP_CFG
-./scripts/run.sh context-model -s test.yaml add interface-usage CHIP ITF_DATA_PLANE
-./scripts/run.sh context-model -s test.yaml add interface-usage SNP ITF_CHIP_CFG
+./scripts/run.sh context-model -m test.yaml add interface-usage USER ITF_OMU
+./scripts/run.sh context-model -m test.yaml add interface-usage BD_SOFT ITF_SNP_CFG
+./scripts/run.sh context-model -m test.yaml add interface-usage CHIP ITF_DATA_PLANE
+./scripts/run.sh context-model -m test.yaml add interface-usage SNP ITF_CHIP_CFG
 
-./scripts/run.sh validate -s test.yaml
+./scripts/run.sh validate -m test.yaml
 
-./scripts/run.sh concept-model -s test.yaml add element subsystem
-./scripts/run.sh concept-model -s test.yaml add element component
-./scripts/run.sh concept-model -s test.yaml add element module
-./scripts/run.sh concept-model -s test.yaml add element submodule
-./scripts/run.sh concept-model -s test.yaml add containment system subsystem
-./scripts/run.sh concept-model -s test.yaml add containment subsystem component
-./scripts/run.sh concept-model -s test.yaml add containment system component
-./scripts/run.sh concept-model -s test.yaml add containment component module
-./scripts/run.sh concept-model -s test.yaml add containment module submodule
-./scripts/run.sh concept-model -s test.yaml add containment submodule submodule
+./scripts/run.sh concept-model -m test.yaml add element subsystem
+./scripts/run.sh concept-model -m test.yaml add element component
+./scripts/run.sh concept-model -m test.yaml add element module
+./scripts/run.sh concept-model -m test.yaml add element submodule
+./scripts/run.sh concept-model -m test.yaml add containment system subsystem
+./scripts/run.sh concept-model -m test.yaml add containment subsystem component
+./scripts/run.sh concept-model -m test.yaml add containment system component
+./scripts/run.sh concept-model -m test.yaml add containment component module
+./scripts/run.sh concept-model -m test.yaml add containment module submodule
+./scripts/run.sh concept-model -m test.yaml add containment submodule submodule
 
-./scripts/run.sh validate -s test.yaml
+./scripts/run.sh validate -m test.yaml
 
-./scripts/run.sh logic-model -s test.yaml add subsystem CTRL_SUBSYSTEM -n "Controller Subsystem" -d "控制子系统"
-./scripts/run.sh logic-model -s test.yaml add component CTRL -n "Controller" -d "控制组件"
-./scripts/run.sh logic-model -s test.yaml add module MOTOR_CTRL -n "Motor Controller" -d "电机控制逻辑"
-./scripts/run.sh logic-model -s test.yaml add submodule POSITION_LOOP -n "Position Loop" -d "位置环逻辑"
-./scripts/run.sh logic-model -s test.yaml add submodule SPEED_LOOP -n "Speed Loop" -d "速度环逻辑"
-./scripts/run.sh logic-model -s test.yaml add submodule CURRENT_LOOP -n "Current Loop" -d "电流环逻辑"
+./scripts/run.sh logic-model -m test.yaml add subsystem CTRL_SUBSYSTEM -n "Controller Subsystem" -d "控制子系统"
+./scripts/run.sh logic-model -m test.yaml add component CTRL -n "Controller" -d "控制组件"
+./scripts/run.sh logic-model -m test.yaml add module MOTOR_CTRL -n "Motor Controller" -d "电机控制逻辑"
+./scripts/run.sh logic-model -m test.yaml add submodule POSITION_LOOP -n "Position Loop" -d "位置环逻辑"
+./scripts/run.sh logic-model -m test.yaml add submodule SPEED_LOOP -n "Speed Loop" -d "速度环逻辑"
+./scripts/run.sh logic-model -m test.yaml add submodule CURRENT_LOOP -n "Current Loop" -d "电流环逻辑"
 
-./scripts/run.sh logic-model -s test.yaml add containment SNP CTRL_SUBSYSTEM
-./scripts/run.sh logic-model -s test.yaml add containment CTRL_SUBSYSTEM CTRL
-./scripts/run.sh logic-model -s test.yaml add containment CTRL MOTOR_CTRL
-./scripts/run.sh logic-model -s test.yaml add containment MOTOR_CTRL CURRENT_LOOP
-./scripts/run.sh logic-model -s test.yaml add containment MOTOR_CTRL SPEED_LOOP
-./scripts/run.sh logic-model -s test.yaml add containment MOTOR_CTRL POSITION_LOOP
+./scripts/run.sh logic-model -m test.yaml add containment SNP CTRL_SUBSYSTEM
+./scripts/run.sh logic-model -m test.yaml add containment CTRL_SUBSYSTEM CTRL
+./scripts/run.sh logic-model -m test.yaml add containment CTRL MOTOR_CTRL
+./scripts/run.sh logic-model -m test.yaml add containment MOTOR_CTRL CURRENT_LOOP
+./scripts/run.sh logic-model -m test.yaml add containment MOTOR_CTRL SPEED_LOOP
+./scripts/run.sh logic-model -m test.yaml add containment MOTOR_CTRL POSITION_LOOP
 
-./scripts/run.sh logic-model -s test.yaml add interface ITF_CTRL_SUBSYSTEM -n "Controller Subsystem Interface" -d "控制子系统接口"
-./scripts/run.sh logic-model -s test.yaml add interface ITF_CTRL -n "Controller Interface" -d "控制组件接口"
-./scripts/run.sh logic-model -s test.yaml add interface ITF_MOTOR_CTRL -n "Motor Controller Interface" -d "电机控制逻辑接口"
-./scripts/run.sh logic-model -s test.yaml add interface ITF_POSITION_LOOP -n "Position Loop Interface" -d "位置环逻辑接口"
-./scripts/run.sh logic-model -s test.yaml add interface ITF_SPEED_LOOP -n "Speed Loop Interface" -d "速度环逻辑接口"
-./scripts/run.sh logic-model -s test.yaml add interface ITF_CURRENT_LOOP -n "Current Loop Interface" -d "电流环逻辑接口"
+./scripts/run.sh logic-model -m test.yaml add interface ITF_CTRL_SUBSYSTEM -n "Controller Subsystem Interface" -d "控制子系统接口"
+./scripts/run.sh logic-model -m test.yaml add interface ITF_CTRL -n "Controller Interface" -d "控制组件接口"
+./scripts/run.sh logic-model -m test.yaml add interface ITF_MOTOR_CTRL -n "Motor Controller Interface" -d "电机控制逻辑接口"
+./scripts/run.sh logic-model -m test.yaml add interface ITF_POSITION_LOOP -n "Position Loop Interface" -d "位置环逻辑接口"
+./scripts/run.sh logic-model -m test.yaml add interface ITF_SPEED_LOOP -n "Speed Loop Interface" -d "速度环逻辑接口"
+./scripts/run.sh logic-model -m test.yaml add interface ITF_CURRENT_LOOP -n "Current Loop Interface" -d "电流环逻辑接口"
 
-./scripts/run.sh logic-model -s test.yaml add provide-relation CTRL_SUBSYSTEM ITF_CTRL_SUBSYSTEM
-./scripts/run.sh logic-model -s test.yaml add provide-relation CTRL ITF_CTRL
-./scripts/run.sh logic-model -s test.yaml add provide-relation MOTOR_CTRL ITF_MOTOR_CTRL
-./scripts/run.sh logic-model -s test.yaml add provide-relation POSITION_LOOP ITF_POSITION_LOOP
-./scripts/run.sh logic-model -s test.yaml add provide-relation SPEED_LOOP ITF_SPEED_LOOP
-./scripts/run.sh logic-model -s test.yaml add provide-relation CURRENT_LOOP ITF_CURRENT_LOOP
+./scripts/run.sh logic-model -m test.yaml add provide-relation CTRL_SUBSYSTEM ITF_CTRL_SUBSYSTEM
+./scripts/run.sh logic-model -m test.yaml add provide-relation CTRL ITF_CTRL
+./scripts/run.sh logic-model -m test.yaml add provide-relation MOTOR_CTRL ITF_MOTOR_CTRL
+./scripts/run.sh logic-model -m test.yaml add provide-relation POSITION_LOOP ITF_POSITION_LOOP
+./scripts/run.sh logic-model -m test.yaml add provide-relation SPEED_LOOP ITF_SPEED_LOOP
+./scripts/run.sh logic-model -m test.yaml add provide-relation CURRENT_LOOP ITF_CURRENT_LOOP
 
-./scripts/run.sh logic-model -s test.yaml add dependency POSITION_LOOP ITF_SPEED_LOOP
-./scripts/run.sh logic-model -s test.yaml add dependency SPEED_LOOP ITF_CURRENT_LOOP
+./scripts/run.sh logic-model -m test.yaml add dependency POSITION_LOOP ITF_SPEED_LOOP
+./scripts/run.sh logic-model -m test.yaml add dependency SPEED_LOOP ITF_CURRENT_LOOP
 
-./scripts/run.sh logic-model -s test.yaml add containment ITF_MOTOR_CTRL ITF_POSITION_LOOP
-./scripts/run.sh logic-model -s test.yaml add containment ITF_CTRL ITF_MOTOR_CTRL
-./scripts/run.sh logic-model -s test.yaml add containment ITF_CTRL_SUBSYSTEM ITF_CTRL
-./scripts/run.sh logic-model -s test.yaml add containment ITF_OMU ITF_CTRL_SUBSYSTEM
+./scripts/run.sh logic-model -m test.yaml add containment ITF_MOTOR_CTRL ITF_POSITION_LOOP
+./scripts/run.sh logic-model -m test.yaml add containment ITF_CTRL ITF_MOTOR_CTRL
+./scripts/run.sh logic-model -m test.yaml add containment ITF_CTRL_SUBSYSTEM ITF_CTRL
+./scripts/run.sh logic-model -m test.yaml add containment ITF_OMU ITF_CTRL_SUBSYSTEM
 
-./scripts/run.sh validate -s test.yaml
+./scripts/run.sh validate -m test.yaml
 
 echo ""
 echo -e "${YELLOW}15. 测试 context-model-diagram 生成输出${NC}"
-ACTUAL_OUTPUT=$(code/target/release/sys-design generate -s test.yaml context-model-diagram 2>&1)
+ACTUAL_OUTPUT=$(code/target/release/sys-design generate -m test.yaml context-model-diagram 2>&1)
 
 EXPECTED_OUTPUT='@startuml
 
@@ -133,7 +133,7 @@ fi
 
 echo ""
 echo -e "${YELLOW}16. 测试 concept-model-diagram 生成输出${NC}"
-ACTUAL_OUTPUT=$(code/target/release/sys-design generate -s test.yaml concept-model-diagram 2>&1)
+ACTUAL_OUTPUT=$(code/target/release/sys-design generate -m test.yaml concept-model-diagram 2>&1)
 
 EXPECTED_OUTPUT='@startuml
 
@@ -169,7 +169,7 @@ fi
 
 echo ""
 echo -e "${YELLOW}17. 测试 logic-model-diagram 生成输出（精确匹配，不存在的元素报错）${NC}"
-ACTUAL_OUTPUT=$(code/target/release/sys-design generate -s test.yaml logic-model-diagram MOTOR 2>&1)
+ACTUAL_OUTPUT=$(code/target/release/sys-design generate -m test.yaml logic-model-diagram MOTOR 2>&1)
 
 EXPECTED_OUTPUT='@startuml
 
@@ -195,7 +195,7 @@ fi
 
 echo ""
 echo -e "${YELLOW}18. 测试 logic-model-diagram 生成输出（MOTOR_CTRL 精确匹配）${NC}"
-ACTUAL_OUTPUT=$(code/target/release/sys-design generate -s test.yaml logic-model-diagram MOTOR_CTRL 2>&1)
+ACTUAL_OUTPUT=$(code/target/release/sys-design generate -m test.yaml logic-model-diagram MOTOR_CTRL 2>&1)
 
 EXPECTED_OUTPUT='@startuml
 
@@ -240,7 +240,7 @@ fi
 
 echo ""
 echo -e "${YELLOW}19. 测试 logic-model-diagram 生成输出（SNP 系统元素）${NC}"
-ACTUAL_OUTPUT=$(code/target/release/sys-design generate -s test.yaml logic-model-diagram SNP 2>&1)
+ACTUAL_OUTPUT=$(code/target/release/sys-design generate -m test.yaml logic-model-diagram SNP 2>&1)
 
 EXPECTED_OUTPUT='@startuml
 
@@ -286,5 +286,5 @@ echo -e "${GREEN}所有测试通过！${NC}"
 
 rm -f local_diagram.md
 echo "\`\`\`plantuml" > local_diagram.md
-code/target/release/sys-design generate --src test.yaml logic-model-diagram CTRL_SUBSYSTEM >> local_diagram.md
+code/target/release/sys-design generate --model_file test.yaml logic-model-diagram CTRL_SUBSYSTEM >> local_diagram.md
 echo "\`\`\`" >> local_diagram.md

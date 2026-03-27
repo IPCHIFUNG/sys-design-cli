@@ -17,13 +17,13 @@ SUPPORTED DIAGRAMS:
 
 QUICK START:
   # Validate a model
-  sys-design validate -s model.yaml -t context
+  sys-design validate -m model.yaml -t context
 
   # Generate a diagram
-  sys-design generate -s model.yaml -o output.puml context-model-diagram
+  sys-design generate -m model.yaml -o output.puml context-model-diagram
 
   # Add elements via CLI
-  sys-design context-model -s model.yaml add system MY_SYSTEM -n \"My System\"
+  sys-design context-model -m model.yaml add system MY_SYSTEM -n \"My System\"
 
 NAMING CONVENTIONS:
   • System, External System, Interface IDs: UPPER_SNAKE_CASE (e.g., PAYMENT_GATEWAY)
@@ -48,20 +48,20 @@ Manage system context elements including:
 
 EXAMPLES:
   # Add a system
-  sys-design context-model -s model.yaml add system SNP -n \"SNP System\"
+  sys-design context-model -m model.yaml add system SNP -n \"SNP System\"
 
   # Add an actor
-  sys-design context-model -s model.yaml add actor USER -n \"User\" -t internal
+  sys-design context-model -m model.yaml add actor USER -n \"User\" -t internal
 
   # Add an interface
-  sys-design context-model -s model.yaml add interface ITF_API -n \"API\" -p rest
+  sys-design context-model -m model.yaml add interface ITF_API -n \"API\" -p rest
 
   # List all actors
-  sys-design context-model -s model.yaml list actors")]
+  sys-design context-model -m model.yaml list actors")]
     ContextModel {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
 
         #[command(subcommand)]
         command: ContextModelCommand,
@@ -79,20 +79,20 @@ Manage logical architecture elements including:
 
 EXAMPLES:
   # Add a subsystem
-  sys-design logic-model -s model.yaml add subsystem CTRL_SUBSYSTEM -n \"Controller\"
+  sys-design logic-model -m model.yaml add subsystem CTRL_SUBSYSTEM -n \"Controller\"
 
   # Add a component to a subsystem
-  sys-design logic-model -s model.yaml add component CTRL --subsystem CTRL_SUBSYSTEM
+  sys-design logic-model -m model.yaml add component CTRL --subsystem CTRL_SUBSYSTEM
 
   # Add a module
-  sys-design logic-model -s model.yaml add module MOTOR_CTRL -n \"Motor Controller\"
+  sys-design logic-model -m model.yaml add module MOTOR_CTRL -n \"Motor Controller\"
 
   # Add a containment relation
-  sys-design logic-model -s model.yaml add containment CTRL_SUBSYSTEM CTRL")]
+  sys-design logic-model -m model.yaml add containment CTRL_SUBSYSTEM CTRL")]
     LogicModel {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
 
         #[command(subcommand)]
         command: LogicModelCommand,
@@ -108,20 +108,20 @@ Define the hierarchy rules that the Logic View must follow:
 
 EXAMPLES:
   # Add a hierarchy level
-  sys-design concept-model -s model.yaml add level SYSTEM -n \"system\" -c SUBSYSTEM,COMPONENT
+  sys-design concept-model -m model.yaml add level SYSTEM -n \"system\" -c SUBSYSTEM,COMPONENT
 
   # Add element types
-  sys-design concept-model -s model.yaml add element subsystem
+  sys-design concept-model -m model.yaml add element subsystem
 
   # Add containment rule
-  sys-design concept-model -s model.yaml add containment SUBSYSTEM COMPONENT
+  sys-design concept-model -m model.yaml add containment SUBSYSTEM COMPONENT
 
   # List all levels
-  sys-design concept-model -s model.yaml list")]
+  sys-design concept-model -m model.yaml list")]
     ConceptModel {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
 
         #[command(subcommand)]
         command: ConceptModelCommand,
@@ -137,20 +137,20 @@ SUPPORTED DIAGRAM TYPES:
 
 EXAMPLES:
   # Generate context diagram to file
-  sys-design generate -s model.yaml -o context.puml context-model-diagram
+  sys-design generate -m model.yaml -o context.puml context-model-diagram
 
   # Generate concept model diagram (stdout)
-  sys-design generate -s model.yaml concept-model-diagram
+  sys-design generate -m model.yaml concept-model-diagram
 
   # Generate full logic view
-  sys-design generate -s model.yaml -o logic.puml logic-model-diagram
+  sys-design generate -m model.yaml -o logic.puml logic-model-diagram
 
   # Generate logic view from specific root element
-  sys-design generate -s model.yaml logic-model-diagram CTRL_SUBSYSTEM")]
+  sys-design generate -m model.yaml logic-model-diagram CTRL_SUBSYSTEM")]
     Generate {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
 
         /// Output file path (stdout if not specified)
         #[arg(short, long)]
@@ -177,14 +177,14 @@ DIAGRAM TYPES:
 
 EXAMPLES:
   # Validate context diagram
-  sys-design validate -s model.yaml -t context
+  sys-design validate -m model.yaml -t context
 
   # Validate with JSON output
-  sys-design validate -s model.yaml -t logic-view --format json")]
+  sys-design validate -m model.yaml -t logic-view --format json")]
     Validate {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
 
         /// Output format (text or json)
         #[arg(long, value_enum, default_value = "text")]
@@ -239,10 +239,10 @@ OUTPUT: PlantUML component diagram with nested elements
 
 EXAMPLES:
   # Generate full diagram
-  sys-design generate -s model.yaml logic-model-diagram
+  sys-design generate -m model.yaml logic-model-diagram
 
   # Generate from specific subsystem
-  sys-design generate -s model.yaml logic-model-diagram CTRL_SUBSYSTEM")]
+  sys-design generate -m model.yaml logic-model-diagram CTRL_SUBSYSTEM")]
     LogicModelDiagram {
         /// Root element ID to start from (optional, defaults to system root)
         root: Option<String>,

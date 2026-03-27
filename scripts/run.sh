@@ -3,8 +3,8 @@
 # 用法: ./run.sh [command] [args...]
 # 示例:
 #   ./run.sh init --name my-project
-#   ./run.sh --src model.yaml context-model list relations
-#   ./run.sh --src model.yaml generate -o output.puml
+#   ./run.sh --model_file model.yaml context-model list relations
+#   ./run.sh --model_file model.yaml generate -o output.puml
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -6,50 +6,50 @@ use crate::utils::error::{AppError, Result};
 use colored::Colorize;
 use std::path::Path;
 
-pub fn execute(src: &Path, cmd: ConceptModelCommand) -> Result<()> {
+pub fn execute(model_file: &Path, cmd: ConceptModelCommand) -> Result<()> {
     match cmd {
-        ConceptModelCommand::Add(add_cmd) => execute_add(src, add_cmd),
-        ConceptModelCommand::Remove(remove_cmd) => execute_remove(src, remove_cmd),
-        ConceptModelCommand::List => execute_list(src),
-        ConceptModelCommand::Show { id } => execute_show(src, &id),
+        ConceptModelCommand::Add(add_cmd) => execute_add(model_file, add_cmd),
+        ConceptModelCommand::Remove(remove_cmd) => execute_remove(model_file, remove_cmd),
+        ConceptModelCommand::List => execute_list(model_file),
+        ConceptModelCommand::Show { id } => execute_show(model_file, &id),
     }
 }
 
-fn execute_add(src: &Path, cmd: ConceptModelAddCommand) -> Result<()> {
+fn execute_add(model_file: &Path, cmd: ConceptModelAddCommand) -> Result<()> {
     match cmd {
-        ConceptModelAddCommand::Element { type_name } => execute_add_element(src, &type_name),
+        ConceptModelAddCommand::Element { type_name } => execute_add_element(model_file, &type_name),
         ConceptModelAddCommand::Containment { parent, child } => {
-            execute_add_containment(src, &parent, &child)
+            execute_add_containment(model_file, &parent, &child)
         }
         ConceptModelAddCommand::Level { id, name, desc, can_contain } => {
-            execute_add_level(src, id, name, desc, can_contain)
+            execute_add_level(model_file, id, name, desc, can_contain)
         }
     }
 }
 
-fn execute_remove(src: &Path, cmd: ConceptModelRemoveCommand) -> Result<()> {
+fn execute_remove(model_file: &Path, cmd: ConceptModelRemoveCommand) -> Result<()> {
     match cmd {
-        ConceptModelRemoveCommand::Element { type_name } => execute_remove_element(src, &type_name),
-        ConceptModelRemoveCommand::Level { id } => execute_remove_level(src, &id),
+        ConceptModelRemoveCommand::Element { type_name } => execute_remove_element(model_file, &type_name),
+        ConceptModelRemoveCommand::Level { id } => execute_remove_level(model_file, &id),
     }
 }
 
 /// Load workspace from file, creating new if doesn't exist
-fn load_workspace(src: &Path) -> Result<Workspace> {
-    if !YamlStore::exists(src) {
+fn load_workspace(model_file: &Path) -> Result<Workspace> {
+    if !YamlStore::exists(model_file) {
         return Ok(Workspace::new("New Project"));
     }
-    YamlStore::load_workspace_any(src)
+    YamlStore::load_workspace_any(model_file)
 }
 
 fn execute_add_level(
-    src: &Path,
+    model_file: &Path,
     id: String,
     name: Option<String>,
     desc: Option<String>,
     can_contain: Vec<String>,
 ) -> Result<()> {
-    let mut workspace = load_workspace(src)?;
+    let mut workspace = load_workspace(model_file)?;
 
     let model = workspace.logic_architecture_concept_model.as_mut().ok_or_else(|| {
         AppError::InvalidOperation("Concept model not found. Run 'init' first.".to_string())
@@ -71,13 +71,13 @@ fn execute_add_level(
     model.touch();
     workspace.touch();
 
-    YamlStore::save_workspace(src, &workspace)?;
+    YamlStore::save_workspace(model_file, &workspace)?;
     println!("{} level: {}", "Added".green(), id);
     Ok(())
 }
 
-fn execute_remove_level(src: &Path, id: &str) -> Result<()> {
-    let mut workspace = load_workspace(src)?;
+fn execute_remove_level(model_file: &Path, id: &str) -> Result<()> {
+    let mut workspace = load_workspace(model_file)?;
 
     let model = workspace.logic_architecture_concept_model.as_mut().ok_or_else(|| {
         AppError::InvalidOperation("Concept model not found. Run 'init' first.".to_string())
@@ -91,13 +91,13 @@ fn execute_remove_level(src: &Path, id: &str) -> Result<()> {
     model.touch();
     workspace.touch();
 
-    YamlStore::save_workspace(src, &workspace)?;
+    YamlStore::save_workspace(model_file, &workspace)?;
     println!("{} level: {}", "Removed".yellow(), id);
     Ok(())
 }
 
-fn execute_add_containment(src: &Path, parent: &str, child: &str) -> Result<()> {
-    let mut workspace = load_workspace(src)?;
+fn execute_add_containment(model_file: &Path, parent: &str, child: &str) -> Result<()> {
+    let mut workspace = load_workspace(model_file)?;
 
     // Auto-initialize concept model if it doesn't exist
     if workspace.logic_architecture_concept_model.is_none() {
@@ -124,13 +124,13 @@ fn execute_add_containment(src: &Path, parent: &str, child: &str) -> Result<()> 
     }
     workspace.touch();
 
-    YamlStore::save_workspace(src, &workspace)?;
+    YamlStore::save_workspace(model_file, &workspace)?;
     println!("{} containment: {} -> {}", "Added".green(), parent.to_uppercase(), child.to_uppercase());
     Ok(())
 }
 
-fn execute_add_element(src: &Path, type_name: &str) -> Result<()> {
-    let mut workspace = load_workspace(src)?;
+fn execute_add_element(model_file: &Path, type_name: &str) -> Result<()> {
+    let mut workspace = load_workspace(model_file)?;
 
     // Auto-initialize concept model if it doesn't exist
     if workspace.logic_architecture_concept_model.is_none() {
@@ -149,13 +149,13 @@ fn execute_add_element(src: &Path, type_name: &str) -> Result<()> {
     }
     workspace.touch();
 
-    YamlStore::save_workspace(src, &workspace)?;
+    YamlStore::save_workspace(model_file, &workspace)?;
     println!("{} element type: {}", "Added".green(), type_name.to_uppercase());
     Ok(())
 }
 
-fn execute_remove_element(src: &Path, type_name: &str) -> Result<()> {
-    let mut workspace = load_workspace(src)?;
+fn execute_remove_element(model_file: &Path, type_name: &str) -> Result<()> {
+    let mut workspace = load_workspace(model_file)?;
 
     let model = workspace.logic_architecture_concept_model.as_mut().ok_or_else(|| {
         AppError::InvalidOperation("Concept model not found. Run 'init' first.".to_string())
@@ -166,13 +166,13 @@ fn execute_remove_element(src: &Path, type_name: &str) -> Result<()> {
     }
     workspace.touch();
 
-    YamlStore::save_workspace(src, &workspace)?;
+    YamlStore::save_workspace(model_file, &workspace)?;
     println!("{} element type: {}", "Removed".yellow(), type_name.to_uppercase());
     Ok(())
 }
 
-fn execute_list(src: &Path) -> Result<()> {
-    let workspace = load_workspace(src)?;
+fn execute_list(model_file: &Path) -> Result<()> {
+    let workspace = load_workspace(model_file)?;
 
     let model = workspace.logic_architecture_concept_model.as_ref().ok_or_else(|| {
         AppError::InvalidOperation("Concept model not found. Run 'init' first.".to_string())
@@ -195,8 +195,8 @@ fn execute_list(src: &Path) -> Result<()> {
     Ok(())
 }
 
-fn execute_show(src: &Path, id: &str) -> Result<()> {
-    let workspace = load_workspace(src)?;
+fn execute_show(model_file: &Path, id: &str) -> Result<()> {
+    let workspace = load_workspace(model_file)?;
 
     let model = workspace.logic_architecture_concept_model.as_ref().ok_or_else(|| {
         AppError::InvalidOperation("Concept model not found. Run 'init' first.".to_string())

@@ -7,8 +7,8 @@ use crate::utils::error::{AppError, Result};
 use colored::Colorize;
 use std::path::PathBuf;
 
-pub fn execute(src: &std::path::Path, output: Option<PathBuf>, command: &GenerateCommand) -> Result<()> {
-    let plantuml = load_and_generate(src, command)?;
+pub fn execute(model_file: &std::path::Path, output: Option<PathBuf>, command: &GenerateCommand) -> Result<()> {
+    let plantuml = load_and_generate(model_file, command)?;
 
     match output {
         Some(path) => {
@@ -27,9 +27,9 @@ pub fn execute(src: &std::path::Path, output: Option<PathBuf>, command: &Generat
     Ok(())
 }
 
-fn load_and_generate(src: &std::path::Path, command: &GenerateCommand) -> Result<String> {
+fn load_and_generate(model_file: &std::path::Path, command: &GenerateCommand) -> Result<String> {
     // Load as workspace (handles legacy formats via load_workspace_any)
-    let workspace = YamlStore::load_workspace_any(src)?;
+    let workspace = YamlStore::load_workspace_any(model_file)?;
     generate_from_workspace(&workspace, command)
 }
 

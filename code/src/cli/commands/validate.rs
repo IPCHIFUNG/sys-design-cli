@@ -5,8 +5,8 @@ use crate::validator::result::{ValidationResult, Severity};
 use crate::utils::error::{AppError, Result};
 use std::path::Path;
 
-pub fn execute(src: &Path, format: OutputFormat, diagram_type: DiagramType) -> Result<()> {
-    let result = load_and_validate(src, &diagram_type)?;
+pub fn execute(model_file: &Path, format: OutputFormat, diagram_type: DiagramType) -> Result<()> {
+    let result = load_and_validate(model_file, &diagram_type)?;
 
     match format {
         OutputFormat::Text => {
@@ -25,9 +25,9 @@ pub fn execute(src: &Path, format: OutputFormat, diagram_type: DiagramType) -> R
     Ok(())
 }
 
-fn load_and_validate(src: &Path, diagram_type: &DiagramType) -> Result<ValidationResult> {
+fn load_and_validate(model_file: &Path, diagram_type: &DiagramType) -> Result<ValidationResult> {
     // Load as workspace (handles legacy formats via load_workspace_any)
-    let workspace = YamlStore::load_workspace_any(src)?;
+    let workspace = YamlStore::load_workspace_any(model_file)?;
     validate_from_workspace(&workspace, diagram_type)
 }
 
