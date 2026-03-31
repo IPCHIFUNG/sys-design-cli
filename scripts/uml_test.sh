@@ -86,6 +86,27 @@ rm -f test.yaml
 
 ./scripts/run.sh validate -m test.yaml
 
+# ===== Runtime Model Setup =====
+./scripts/run.sh runtime-model -m test.yaml add scenario MOTOR_INIT -n "Motor Init Flow" -d "Motor initialization sequence"
+
+./scripts/run.sh runtime-model -m test.yaml add participant MOTOR_INIT USER -t actor
+./scripts/run.sh runtime-model -m test.yaml add participant MOTOR_INIT CTRL -t control
+./scripts/run.sh runtime-model -m test.yaml add participant MOTOR_INIT MOTOR_CTRL -t entity
+
+./scripts/run.sh runtime-model -m test.yaml add step MOTOR_INIT USER CTRL "Init motor"
+./scripts/run.sh runtime-model -m test.yaml add step MOTOR_INIT CTRL MOTOR_CTRL "Configure"
+./scripts/run.sh runtime-model -m test.yaml add step MOTOR_INIT MOTOR_CTRL CTRL "Config done" -t return
+./scripts/run.sh runtime-model -m test.yaml add step MOTOR_INIT CTRL USER "Motor ready" -t return
+
+./scripts/run.sh runtime-model -m test.yaml add group MOTOR_INIT alt "Result" --branches success,failure
+./scripts/run.sh runtime-model -m test.yaml add step MOTOR_INIT CTRL USER "OK" -t return --group "Result" --branch success
+./scripts/run.sh runtime-model -m test.yaml add step MOTOR_INIT CTRL USER "Error" -t return --group "Result" --branch failure
+
+./scripts/run.sh runtime-model -m test.yaml add note MOTOR_INIT left USER "Initiates motor setup"
+./scripts/run.sh runtime-model -m test.yaml add divider MOTOR_INIT "Config Phase" --after-order 2
+
+./scripts/run.sh validate -m test.yaml -t runtime-view
+
 echo ""
 echo -e "${YELLOW}15. 测试 context-model-diagram 生成输出${NC}"
 ACTUAL_OUTPUT=$(code/target/release/sys-design generate -m test.yaml context-model-diagram 2>&1)
@@ -221,8 +242,8 @@ ITF_MOTOR_CTRL --- MOTOR_CTRL
 ITF_POSITION_LOOP --- POSITION_LOOP
 ITF_SPEED_LOOP --- SPEED_LOOP
 ITF_CURRENT_LOOP --- CURRENT_LOOP
-SPEED_LOOP ..> ITF_CURRENT_LOOP
 POSITION_LOOP ..> ITF_SPEED_LOOP
+SPEED_LOOP ..> ITF_CURRENT_LOOP
 
 @enduml'
 
@@ -280,11 +301,101 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}20. 测试 runtime-model-diagram 生成输出${NC}"
+ACTUAL_OUTPUT=$(code/target/release/sys-design generate -m test.yaml runtime-model-diagram MOTOR_INIT 2>&1)
+
+EXPECTED_OUTPUT='@startuml
+
+autonumber
+
+actor "User" as USER
+control "Controller" as CTRL
+entity "Motor Controller" as MOTOR_CTRL
+
+USER -> CTRL : Init motor
+CTRL -> MOTOR_CTRL : Configure
+MOTOR_CTRL --> CTRL : Config done
+CTRL --> USER : Motor ready
+alt Result
+CTRL --> USER : OK
+else failure
+CTRL --> USER : Error
+end
+note left of USER
+  Initiates motor setup
+end note
+== Config Phase ==
+
+@enduml'
+
+if [ "$ACTUAL_OUTPUT" = "$EXPECTED_OUTPUT" ]; then
+    echo -e "${GREEN}  符合预期：runtime-model-diagram 输出正确${NC}"
+else
+    echo -e "${RED}  错误：runtime-model-diagram 输出不匹配${NC}"
+    echo -e "${CYAN}  预期输出:${NC}"
+    echo "$EXPECTED_OUTPUT"
+    echo ""
+    echo -e "${CYAN}  实际输出:${NC}"
+    echo "$ACTUAL_OUTPUT"
+    exit 1
+fi
+
+echo ""
+echo -e "${YELLOW}21. 测试 runtime-model-diagram 生成输出（不存在的场景）${NC}"
+ACTUAL_OUTPUT=$(code/target/release/sys-design generate -m test.yaml runtime-model-diagram NONEXISTENT 2>&1)
+
+EXPECTED_OUTPUT='@startuml
+
+'\'' ERROR: Scenario '\''NONEXISTENT'\'' not found in runtime_view
+'\'' Available scenarios: MOTOR_INIT
+
+@enduml'
+
+if [ "$ACTUAL_OUTPUT" = "$EXPECTED_OUTPUT" ]; then
+    echo -e "${GREEN}  符合预期：不存在的场景正确报错${NC}"
+else
+    echo -e "${RED}  错误：runtime-model-diagram 不存在场景输出不匹配${NC}"
+    echo -e "${CYAN}  预期输出:${NC}"
+    echo "$EXPECTED_OUTPUT"
+    echo ""
+    echo -e "${CYAN}  实际输出:${NC}"
+    echo "$ACTUAL_OUTPUT"
+    exit 1
+fi
+
+echo ""
+echo -e "${YELLOW}22. 测试 runtime-model 删除操作（级联删除）${NC}"
+# 添加第二个场景用于删除测试
+./scripts/run.sh runtime-model -m test.yaml add scenario DEL_TEST -n "Delete Test"
+./scripts/run.sh runtime-model -m test.yaml add participant DEL_TEST USER -t actor
+./scripts/run.sh runtime-model -m test.yaml add participant DEL_TEST CTRL -t control
+./scripts/run.sh runtime-model -m test.yaml add step DEL_TEST USER CTRL "Step1"
+./scripts/run.sh runtime-model -m test.yaml add step DEL_TEST CTRL USER "Step2" -t return
+
+# 删除参与者，验证级联删除步骤
+./scripts/run.sh runtime-model -m test.yaml remove participant DEL_TEST CTRL
+STEPS_AFTER_REMOVE=$(code/target/release/sys-design runtime-model -m test.yaml list steps --scenario DEL_TEST 2>&1)
+if echo "$STEPS_AFTER_REMOVE" | grep -q "Step1" || echo "$STEPS_AFTER_REMOVE" | grep -q "Step2"; then
+    echo -e "${RED}  错误：删除参与者后步骤未被级联删除${NC}"
+    exit 1
+fi
+echo -e "${GREEN}  符合预期：删除参与者后相关步骤被级联删除${NC}"
+
+# 删除场景
+./scripts/run.sh runtime-model -m test.yaml remove scenario DEL_TEST
+SCENARIOS_AFTER_REMOVE=$(code/target/release/sys-design runtime-model -m test.yaml list scenarios 2>&1)
+if echo "$SCENARIOS_AFTER_REMOVE" | grep -q "DEL_TEST"; then
+    echo -e "${RED}  错误：删除场景后场景仍存在${NC}"
+    exit 1
+fi
+echo -e "${GREEN}  符合预期：删除场景成功${NC}"
+
+echo ""
 echo -e "${GREEN}所有测试通过！${NC}"
 
 
 
 rm -f local_diagram.md
 echo "\`\`\`plantuml" > local_diagram.md
-code/target/release/sys-design generate --model_file test.yaml logic-model-diagram CTRL_SUBSYSTEM >> local_diagram.md
+code/target/release/sys-design generate --model_file test.yaml runtime-model-diagram MOTOR_INIT >> local_diagram.md
 echo "\`\`\`" >> local_diagram.md
