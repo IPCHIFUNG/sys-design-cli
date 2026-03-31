@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::model::c4::context::ContextDiagram;
 use crate::model::logic::concept::LogicConceptDiagram;
 use crate::model::logic::concept_model::LogicArchitectureConceptModel;
+use crate::model::runtime::RuntimeView;
 
 /// Workspace containing multiple diagrams
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +16,8 @@ pub struct Workspace {
     pub logic_architecture_concept_model: Option<LogicArchitectureConceptModel>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logic_view: Option<LogicConceptDiagram>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_view: Option<RuntimeView>,
 }
 
 impl Workspace {
@@ -31,6 +34,7 @@ impl Workspace {
             context_diagram: None,
             logic_architecture_concept_model: None,
             logic_view: None,
+            runtime_view: None,
         }
     }
 
@@ -52,6 +56,11 @@ impl Workspace {
     /// Check if logic view exists
     pub fn has_logic_view(&self) -> bool {
         self.logic_view.is_some()
+    }
+
+    /// Check if runtime view exists
+    pub fn has_runtime_view(&self) -> bool {
+        self.runtime_view.is_some()
     }
 
     /// Get the concept model for validation

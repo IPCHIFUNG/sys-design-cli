@@ -194,6 +194,41 @@ EXAMPLES:
         #[arg(short = 't', long, value_enum, default_value = "context")]
         type_: DiagramType,
     },
+
+    /// Runtime model CRUD operations (scenarios, participants, steps, groups)
+    #[command(long_about = "Runtime model operations for Runtime View diagrams.
+
+Manage runtime view elements including:
+  • Scenarios - Runtime flows (use cases, features)
+  • Participants - Elements from context/logic view involved in scenarios
+  • Steps - Interactions between participants (sync, async, return, lost)
+  • Groups - Control flow (alt, loop, par, opt, break, critical)
+  • Notes - Annotations
+  • Dividers - Section markers
+
+EXAMPLES:
+  # Add a scenario
+  sys-design runtime-model -m model.yaml add scenario USER_LOGIN -n \"User Login\"
+
+  # Add participants (must exist in context or logic view)
+  sys-design runtime-model -m model.yaml add participant USER_LOGIN USER -t actor
+
+  # Add a step
+  sys-design runtime-model -m model.yaml add step USER_LOGIN USER APP \"Login request\"
+
+  # Add an alt group with branches
+  sys-design runtime-model -m model.yaml add group USER_LOGIN alt \"Result\" --branches success,failure
+
+  # Add step to a specific branch
+  sys-design runtime-model -m model.yaml add step USER_LOGIN APP USER \"Token\" -t return --group \"Result\" --branch success")]
+    RuntimeModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: RuntimeModelCommand,
+    },
 }
 
 /// Generate command subcommands
@@ -247,6 +282,32 @@ EXAMPLES:
         /// Root element ID to start from (optional, defaults to system root)
         root: Option<String>,
     },
+
+    /// Generate runtime view sequence diagram
+    #[command(long_about = "Generate a PlantUML sequence diagram for a runtime scenario.
+
+Displays:
+  • Participants as lifelines (actors, systems, components)
+  • Interaction steps with arrows (sync, async, return, lost)
+  • Control flow groups (alt, loop, par, opt, etc.)
+  • Notes and dividers
+
+ARGUMENTS:
+  [SCENARIO_ID] - Scenario ID to generate. Required when multiple scenarios exist.
+                   If only one scenario exists, it is used automatically.
+
+OUTPUT: PlantUML sequence diagram
+
+EXAMPLES:
+  # Generate specific scenario
+  sys-design generate -m model.yaml runtime-model-diagram USER_LOGIN
+
+  # Generate to file
+  sys-design generate -m model.yaml -o login.puml runtime-model-diagram USER_LOGIN")]
+    RuntimeModelDiagram {
+        /// Scenario ID to generate (required when multiple scenarios exist)
+        scenario_id: Option<String>,
+    },
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -257,6 +318,8 @@ pub enum DiagramType {
     ConceptModel,
     /// Logic view - Concrete implementation following concept model rules
     LogicView,
+    /// Runtime view - Dynamic behavior as sequence diagrams
+    RuntimeView,
 }
 
 #[derive(Subcommand)]
@@ -819,4 +882,340 @@ Note: This may invalidate hierarchy rules referencing this level.")]
         /// Level ID to remove
         id: String,
     },
+}
+
+// ==================== Runtime Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum RuntimeModelCommand {
+    /// Add elements to the runtime model
+    #[command(subcommand)]
+    Add(RuntimeAddCommand),
+
+    /// Remove elements from the runtime model
+    #[command(subcommand)]
+    Remove(RuntimeRemoveCommand),
+
+    /// List elements
+    #[command(long_about = "List runtime model elements.
+
+ELEMENT TYPES:
+  • scenarios - All scenarios
+  • participants - Participants in a scenario (requires --scenario)
+  • steps - Steps in a scenario (requires --scenario)
+  • groups - Groups in a scenario (requires --scenario)")]
+    List {
+        /// Element type: scenarios, participants, steps, groups
+        #[arg(value_enum)]
+        element: RuntimeListElement,
+        /// Scenario ID (required for participants, steps, groups)
+        #[arg(short, long)]
+        scenario: Option<String>,
+    },
+
+    /// Show detailed scenario information
+    Show {
+        /// Scenario ID to display
+        scenario_id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum RuntimeAddCommand {
+    /// Add a new scenario (runtime flow)
+    Scenario {
+        /// Scenario ID (UPPER_SNAKE_CASE, e.g., USER_LOGIN, DATA_SYNC)
+        id: String,
+        /// Scenario display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Scenario description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+
+    /// Add a participant (references element from context/logic view)
+    #[command(long_about = "Add a participant to a scenario.
+
+Participant types:
+  • actor - Person/external entity
+  • participant - Generic component
+  • boundary - System boundary/interface
+  • control - Controller/coordinator
+  • entity - Data entity
+  • database - Data store
+  • collections - Collection of items
+  • queue - Message queue
+
+The element_id must exist in the context diagram or logic view.")]
+    Participant {
+        /// Scenario ID to add participant to
+        scenario_id: String,
+        /// Element ID from context diagram or logic view
+        element_id: String,
+        /// Participant type (default: participant)
+        #[arg(short = 't', long, value_enum, default_value = "participant")]
+        participant_type: ParticipantTypeArg,
+        /// Display alias
+        #[arg(long)]
+        alias: Option<String>,
+        /// Color (e.g., #FF0000, red)
+        #[arg(long)]
+        color: Option<String>,
+    },
+
+    /// Add an interaction step
+    #[command(long_about = "Add an interaction step between participants.
+
+Step types:
+  • sync - Synchronous call (solid arrow ->)
+  • async - Asynchronous message (open arrow ->>)
+  • return - Return/response (dashed arrow -->)
+  • lost - Lost message (circle-x arrow -[o]->)
+
+The order is auto-assigned (max + 1).")]
+    Step {
+        /// Scenario ID
+        scenario_id: String,
+        /// Source participant element ID
+        from: String,
+        /// Target participant element ID
+        to: String,
+        /// Message content
+        message: String,
+        /// Step type: sync, async, return, lost
+        #[arg(short = 't', long, value_enum, default_value = "sync")]
+        step_type: StepTypeArg,
+        /// Protocol (e.g., REST, gRPC)
+        #[arg(short = 'p', long)]
+        protocol: Option<String>,
+        /// Color
+        #[arg(long)]
+        color: Option<String>,
+        /// Activate target lifeline
+        #[arg(long)]
+        activate: Option<bool>,
+        /// Target group label (one level only)
+        #[arg(long)]
+        group: Option<String>,
+        /// Target branch label (for alt groups only)
+        #[arg(long)]
+        branch: Option<String>,
+    },
+
+    /// Add a control flow group
+    #[command(long_about = "Add a control flow group (UML combined fragment).
+
+Group types:
+  • alt - Conditional (if/else), requires --branches
+  • opt - Optional execution
+  • loop - Iteration
+  • par - Parallel execution
+  • break - Exception/break handling
+  • critical - Atomic/critical section
+  • group - Generic named grouping
+
+For alt groups, specify branches with --branches (comma-separated).
+Non-alt groups use inline blocks.")]
+    Group {
+        /// Scenario ID
+        scenario_id: String,
+        /// Group type: alt, opt, loop, par, break, critical, group
+        group_type: GroupTypeArg,
+        /// Group label
+        label: String,
+        /// Branch labels for alt groups (comma-separated, e.g., success,failure)
+        #[arg(short, long, value_delimiter = ',')]
+        branches: Vec<String>,
+        /// Parent group label (one level only)
+        #[arg(long)]
+        group: Option<String>,
+        /// Parent branch label (for alt parent group)
+        #[arg(long)]
+        branch: Option<String>,
+    },
+
+    /// Add an annotation note
+    Note {
+        /// Scenario ID
+        scenario_id: String,
+        /// Note position: left, right, over
+        position: NotePositionArg,
+        /// Target participant element ID
+        target: String,
+        /// Note text
+        text: String,
+    },
+
+    /// Add a section divider
+    Divider {
+        /// Scenario ID
+        scenario_id: String,
+        /// Divider label
+        label: String,
+        /// Insert after step with this order number
+        #[arg(long)]
+        after_order: u32,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum RuntimeRemoveCommand {
+    /// Remove a scenario
+    Scenario {
+        /// Scenario ID to remove
+        id: String,
+    },
+
+    /// Remove a participant (cascades to referencing steps)
+    #[command(long_about = "Remove a participant.
+Note: This also removes all steps that reference this participant.")]
+    Participant {
+        /// Scenario ID
+        scenario_id: String,
+        /// Participant element ID to remove
+        element_id: String,
+    },
+
+    /// Remove a step by order number
+    Step {
+        /// Scenario ID
+        scenario_id: String,
+        /// Step order number
+        order: u32,
+        /// Target group label (one level only)
+        #[arg(long)]
+        group: Option<String>,
+        /// Target branch label (for alt groups)
+        #[arg(long)]
+        branch: Option<String>,
+    },
+
+    /// Remove a group (cascades to entire subtree)
+    #[command(long_about = "Remove a group.
+Note: This removes the entire group subtree including all nested steps and groups.")]
+    Group {
+        /// Scenario ID
+        scenario_id: String,
+        /// Group label to remove
+        label: String,
+        /// Parent group label (one level only)
+        #[arg(long)]
+        group: Option<String>,
+        /// Parent branch label (for alt parent group)
+        #[arg(long)]
+        branch: Option<String>,
+    },
+
+    /// Remove a note by index
+    Note {
+        /// Scenario ID
+        scenario_id: String,
+        /// Note index (0-based)
+        index: usize,
+    },
+
+    /// Remove a divider by index
+    Divider {
+        /// Scenario ID
+        scenario_id: String,
+        /// Divider index (0-based)
+        index: usize,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum RuntimeListElement {
+    Scenarios,
+    Participants,
+    Steps,
+    Groups,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum ParticipantTypeArg {
+    Participant,
+    Actor,
+    Boundary,
+    Control,
+    Entity,
+    Database,
+    Collections,
+    Queue,
+}
+
+impl From<ParticipantTypeArg> for crate::model::runtime::ParticipantType {
+    fn from(value: ParticipantTypeArg) -> Self {
+        match value {
+            ParticipantTypeArg::Participant => crate::model::runtime::ParticipantType::Participant,
+            ParticipantTypeArg::Actor => crate::model::runtime::ParticipantType::Actor,
+            ParticipantTypeArg::Boundary => crate::model::runtime::ParticipantType::Boundary,
+            ParticipantTypeArg::Control => crate::model::runtime::ParticipantType::Control,
+            ParticipantTypeArg::Entity => crate::model::runtime::ParticipantType::Entity,
+            ParticipantTypeArg::Database => crate::model::runtime::ParticipantType::Database,
+            ParticipantTypeArg::Collections => crate::model::runtime::ParticipantType::Collections,
+            ParticipantTypeArg::Queue => crate::model::runtime::ParticipantType::Queue,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum StepTypeArg {
+    Sync,
+    Async,
+    Return,
+    Lost,
+}
+
+impl From<StepTypeArg> for crate::model::runtime::StepType {
+    fn from(value: StepTypeArg) -> Self {
+        match value {
+            StepTypeArg::Sync => crate::model::runtime::StepType::Sync,
+            StepTypeArg::Async => crate::model::runtime::StepType::Async,
+            StepTypeArg::Return => crate::model::runtime::StepType::Return,
+            StepTypeArg::Lost => crate::model::runtime::StepType::Lost,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum GroupTypeArg {
+    Alt,
+    Opt,
+    Loop,
+    Par,
+    Break,
+    Critical,
+    Group,
+}
+
+impl From<GroupTypeArg> for crate::model::runtime::GroupType {
+    fn from(value: GroupTypeArg) -> Self {
+        match value {
+            GroupTypeArg::Alt => crate::model::runtime::GroupType::Alt,
+            GroupTypeArg::Opt => crate::model::runtime::GroupType::Opt,
+            GroupTypeArg::Loop => crate::model::runtime::GroupType::Loop,
+            GroupTypeArg::Par => crate::model::runtime::GroupType::Par,
+            GroupTypeArg::Break => crate::model::runtime::GroupType::Break,
+            GroupTypeArg::Critical => crate::model::runtime::GroupType::Critical,
+            GroupTypeArg::Group => crate::model::runtime::GroupType::Group,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum NotePositionArg {
+    Left,
+    Right,
+    Over,
+}
+
+impl From<NotePositionArg> for crate::model::runtime::NotePosition {
+    fn from(value: NotePositionArg) -> Self {
+        match value {
+            NotePositionArg::Left => crate::model::runtime::NotePosition::Left,
+            NotePositionArg::Right => crate::model::runtime::NotePosition::Right,
+            NotePositionArg::Over => crate::model::runtime::NotePosition::Over,
+        }
+    }
 }

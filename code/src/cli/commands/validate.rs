@@ -1,7 +1,7 @@
 use crate::cli::args::{DiagramType, OutputFormat};
 use crate::store::YamlStore;
-use crate::validator::{validate, validate_logic_concept, validate_concept_model};
-use crate::validator::result::{ValidationResult, Severity};
+use crate::validator::{validate, validate_logic_concept, validate_concept_model, validate_runtime_view};
+use crate::validator::result::{ValidationResult, ValidationError, Severity};
 use crate::utils::error::{AppError, Result};
 use std::path::Path;
 
@@ -72,6 +72,18 @@ fn validate_from_workspace(
                         "logic_view not found in workspace".to_string()
                     ));
                 }
+            }
+        }
+        DiagramType::RuntimeView => {
+            match &workspace.runtime_view {
+                Some(view) => {
+                    result.merge(validate_runtime_view(view));
+                    // Cross-diagram validation: participant element_id must exist
+                    validate_runtime_participant_references(workspace, view, &mut result);
+                }
+                None => return Err(AppError::ElementNotFound(
+                    "runtime_view not found in workspace".to_string()
+                )),
             }
         }
     }
@@ -472,6 +484,45 @@ fn validate_orphan_elements(
                 severity: Severity::Error,
                 location: Some(format!("modules.{}", module.id)),
             });
+        }
+    }
+}
+
+/// Validate that runtime view participants reference existing elements in static models
+fn validate_runtime_participant_references(
+    workspace: &crate::model::workspace::Workspace,
+    view: &crate::model::runtime::RuntimeView,
+    result: &mut ValidationResult,
+) {
+    // Collect all valid element IDs from static models
+    let mut valid_ids: Vec<&str> = Vec::new();
+
+    if let Some(ctx) = &workspace.context_diagram {
+        valid_ids.extend(ctx.all_element_ids());
+    }
+
+    if let Some(lv) = &workspace.logic_view {
+        valid_ids.extend(lv.all_element_ids());
+    }
+
+    // Check each participant in each scenario
+    for scenario in &view.scenarios {
+        for participant in &scenario.participants {
+            if !valid_ids.contains(&participant.element_id.as_str()) {
+                result.add_error(ValidationError {
+                    code: "R007".to_string(),
+                    rule: "ElementReferenceExists".to_string(),
+                    message: format!(
+                        "Participant '{}' in scenario '{}' does not exist in context_diagram or logic_view",
+                        participant.element_id, scenario.id
+                    ),
+                    severity: Severity::Error,
+                    location: Some(format!(
+                        "runtime_view.scenarios.{}.participants.{}",
+                        scenario.id, participant.element_id
+                    )),
+                });
+            }
         }
     }
 }

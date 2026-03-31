@@ -16,6 +16,9 @@ fn main() -> Result<()> {
         Commands::ConceptModel { model_file, command } => {
             commands::concept_model::execute(&model_file, command)?;
         }
+        Commands::RuntimeModel { model_file, command } => {
+            commands::runtime_model::execute(&model_file, command)?;
+        }
         Commands::Generate { model_file, output, command } => {
             commands::generate::execute(&model_file, output, &command)?;
         }

@@ -2,10 +2,12 @@ pub mod result;
 pub mod rules;
 pub mod logic_concept;
 pub mod concept_model;
+pub mod runtime_view;
 
 use crate::model::c4::context::ContextDiagram;
 use crate::model::logic::concept::LogicConceptDiagram;
 use crate::model::logic::concept_model::LogicArchitectureConceptModel;
+use crate::model::runtime::RuntimeView;
 use result::ValidationResult;
 
 pub use result::{ValidationResult as ValResult, Severity};
@@ -34,4 +36,9 @@ pub fn validate_logic_concept(diagram: &LogicConceptDiagram) -> ValidationResult
 /// Validate a LogicArchitectureConceptModel
 pub fn validate_concept_model(model: &LogicArchitectureConceptModel) -> ValidationResult {
     concept_model::validate(model)
+}
+
+/// Validate a RuntimeView
+pub fn validate_runtime_view(view: &RuntimeView) -> ValidationResult {
+    runtime_view::validate(view)
 }

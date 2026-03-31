@@ -1,6 +1,7 @@
 use crate::model::c4::context::ContextDiagram;
 use crate::model::logic::concept::LogicConceptDiagram;
 use crate::model::logic::concept_model::LogicArchitectureConceptModel;
+use crate::model::runtime::RuntimeView;
 use crate::model::workspace::Workspace;
 use crate::utils::error::{AppError, Result};
 use std::path::Path;
@@ -69,6 +70,13 @@ impl YamlStore {
             return Ok(workspace);
         }
 
+        // Try to parse as runtime view and convert to workspace
+        if let Ok(runtime_view) = serde_yaml::from_str::<RuntimeView>(&content) {
+            let mut workspace = Workspace::new(&runtime_view.metadata.title);
+            workspace.runtime_view = Some(runtime_view);
+            return Ok(workspace);
+        }
+
         Err(AppError::InvalidOperation("Unable to parse YAML file as workspace or diagram".to_string()))
     }
 
@@ -82,6 +90,12 @@ impl YamlStore {
     /// Save logic view to workspace (always workspace format)
     pub fn save_logic_to_workspace<P: AsRef<Path>>(path: P, workspace: &mut Workspace, diagram: &LogicConceptDiagram) -> Result<()> {
         workspace.logic_view = Some(diagram.clone());
+        workspace.touch();
+        Self::save_workspace(path, workspace)
+    }
+
+    /// Save runtime view to workspace (always workspace format)
+    pub fn save_runtime_to_workspace<P: AsRef<Path>>(path: P, workspace: &mut Workspace) -> Result<()> {
         workspace.touch();
         Self::save_workspace(path, workspace)
     }

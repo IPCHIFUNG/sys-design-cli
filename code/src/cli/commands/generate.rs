@@ -1,6 +1,7 @@
 use crate::cli::args::GenerateCommand;
 use crate::generator::plantuml::{
     generate_logic_concept_plantuml_with_workspace, generate_plantuml, generate_concept_model_plantuml,
+    generate_runtime_plantuml,
 };
 use crate::store::YamlStore;
 use crate::utils::error::{AppError, Result};
@@ -59,6 +60,26 @@ fn generate_from_workspace(
             )),
             None => Err(AppError::ElementNotFound(
                 "logic_view not found in workspace".to_string(),
+            )),
+        },
+        GenerateCommand::RuntimeModelDiagram { scenario_id } => match &workspace.runtime_view {
+            Some(view) => {
+                let sid = match scenario_id {
+                    Some(id) => id.clone(),
+                    None => {
+                        if view.scenarios.len() == 1 {
+                            view.scenarios[0].id.clone()
+                        } else {
+                            return Err(AppError::InvalidOperation(
+                                "Multiple scenarios exist. Please specify scenario_id.".to_string()
+                            ));
+                        }
+                    }
+                };
+                Ok(generate_runtime_plantuml(workspace, view, &sid))
+            }
+            None => Err(AppError::ElementNotFound(
+                "runtime_view not found in workspace".to_string(),
             )),
         },
     }
