@@ -2,7 +2,34 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "sys-design", about = "System architecture diagram CLI tool")]
+#[command(
+    name = "sys-design",
+    about = "System architecture diagram CLI tool - Generate and validate PlantUML diagrams from YAML models",
+    long_about = "sys-design - A CLI tool for generating and validating architecture diagrams.
+
+This tool reads YAML model files and generates PlantUML output, with validation
+rules for completeness, consistency, and naming conventions.
+
+SUPPORTED DIAGRAMS:
+  • Context Diagram (C4 Context) - System context view with actors, external systems, and interfaces
+  • Logic Concept Model - Hierarchy rules defining allowed element relationships
+  • Logic View - Concrete implementation following concept model rules
+
+QUICK START:
+  # Validate a model
+  sys-design validate -m model.yaml -t context
+
+  # Generate a diagram
+  sys-design generate -m model.yaml -o output.puml context-model-diagram
+
+  # Add elements via CLI
+  sys-design context-model -m model.yaml add system MY_SYSTEM -n \"My System\"
+
+NAMING CONVENTIONS:
+  • System, External System, Interface IDs: UPPER_SNAKE_CASE (e.g., PAYMENT_GATEWAY)
+  • Actor IDs: UPPER_SNAKE_CASE (e.g., USER, ADMIN)
+  • Subsystem, Component, Module IDs: UPPER_SNAKE_CASE (e.g., CTRL_SUBSYSTEM)"
+)]
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
@@ -10,41 +37,120 @@ pub struct Args {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Context model operations
+    /// Context model CRUD operations (actors, external systems, interfaces)
+    #[command(long_about = "Context model operations for C4 Context diagrams.
+
+Manage system context elements including:
+  • System - The central system being described
+  • Actors - External/Internal persons interacting with the system
+  • External Systems - Other systems the main system connects to
+  • Interfaces - API/protocol definitions (REST, gRPC, GraphQL, etc.)
+
+EXAMPLES:
+  # Add a system
+  sys-design context-model -m model.yaml add system SNP -n \"SNP System\"
+
+  # Add an actor
+  sys-design context-model -m model.yaml add actor USER -n \"User\" -t internal
+
+  # Add an interface
+  sys-design context-model -m model.yaml add interface ITF_API -n \"API\" -p rest
+
+  # List all actors
+  sys-design context-model -m model.yaml list actors")]
     ContextModel {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
 
         #[command(subcommand)]
         command: ContextModelCommand,
     },
 
-    /// Logic concept model operations
+    /// Logic model CRUD operations (subsystems, components, modules)
+    #[command(long_about = "Logic model operations for Logic View diagrams.
+
+Manage logical architecture elements including:
+  • System - The top-level system container
+  • Subsystems - Major subsystems within the system
+  • Components - Functional components within subsystems/system
+  • Modules - Modules within components
+  • Submodules - Nested submodules (recursive)
+
+EXAMPLES:
+  # Add a subsystem
+  sys-design logic-model -m model.yaml add subsystem CTRL_SUBSYSTEM -n \"Controller\"
+
+  # Add a component to a subsystem
+  sys-design logic-model -m model.yaml add component CTRL --subsystem CTRL_SUBSYSTEM
+
+  # Add a module
+  sys-design logic-model -m model.yaml add module MOTOR_CTRL -n \"Motor Controller\"
+
+  # Add a containment relation
+  sys-design logic-model -m model.yaml add containment CTRL_SUBSYSTEM CTRL")]
     LogicModel {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
 
         #[command(subcommand)]
         command: LogicModelCommand,
     },
 
-    /// Logic Architecture Concept Model operations (defines hierarchy rules)
+    /// Logic architecture concept model (define hierarchy rules)
+    #[command(long_about = "Logic Architecture Concept Model operations.
+
+Define the hierarchy rules that the Logic View must follow:
+  • Element Types - Types of elements (subsystem, component, module, etc.)
+  • Hierarchy Levels - Levels in the architecture with containment rules
+  • Containment Rules - Which element types can contain others
+
+EXAMPLES:
+  # Add a hierarchy level
+  sys-design concept-model -m model.yaml add level SYSTEM -n \"system\" -c SUBSYSTEM,COMPONENT
+
+  # Add element types
+  sys-design concept-model -m model.yaml add element subsystem
+
+  # Add containment rule
+  sys-design concept-model -m model.yaml add containment SUBSYSTEM COMPONENT
+
+  # List all levels
+  sys-design concept-model -m model.yaml list")]
     ConceptModel {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
 
         #[command(subcommand)]
         command: ConceptModelCommand,
     },
 
-    /// Generate PlantUML diagram
+    /// Generate PlantUML diagrams from YAML models
+    #[command(long_about = "Generate PlantUML diagrams from YAML model files.
+
+SUPPORTED DIAGRAM TYPES:
+  • context-model-diagram - C4 Context diagram showing system, actors, external systems
+  • concept-model-diagram - Hierarchy rules diagram
+  • logic-model-diagram - Logic view diagram with nested elements
+
+EXAMPLES:
+  # Generate context diagram to file
+  sys-design generate -m model.yaml -o context.puml context-model-diagram
+
+  # Generate concept model diagram (stdout)
+  sys-design generate -m model.yaml concept-model-diagram
+
+  # Generate full logic view
+  sys-design generate -m model.yaml -o logic.puml logic-model-diagram
+
+  # Generate logic view from specific root element
+  sys-design generate -m model.yaml logic-model-diagram CTRL_SUBSYSTEM")]
     Generate {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
 
         /// Output file path (stdout if not specified)
         #[arg(short, long)]
@@ -54,79 +160,382 @@ pub enum Commands {
         command: GenerateCommand,
     },
 
-    /// Validate the model
-    Validate {
-        /// YAML source file path
-        #[arg(short, long, value_name = "FILE")]
-        src: PathBuf,
+    /// Validate model against completeness, consistency, and naming rules
+    #[command(long_about = "Validate YAML model files against defined rules.
 
-        /// Output format
+VALIDATION CATEGORIES:
+  • Completeness (C001-C007) - Required fields, interface providers/usages
+  • Consistency (S001-S003) - ID uniqueness, orphan elements
+  • Naming (N001-N003) - Naming conventions, reserved words
+  • Hierarchy (H001-H002) - Conformance to concept model
+  • Orphan (O001) - Elements without containment
+
+DIAGRAM TYPES:
+  • context - Context diagram validation
+  • concept-model - Concept model validation
+  • logic-view - Logic view validation
+
+EXAMPLES:
+  # Validate context diagram
+  sys-design validate -m model.yaml -t context
+
+  # Validate with JSON output
+  sys-design validate -m model.yaml -t logic-view --format json")]
+    Validate {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        /// Output format (text or json)
         #[arg(long, value_enum, default_value = "text")]
         format: OutputFormat,
 
-        /// Diagram type
+        /// Diagram type to validate (context, concept-model, logic-view)
         #[arg(short = 't', long, value_enum, default_value = "context")]
         type_: DiagramType,
+    },
+
+    /// Runtime model CRUD operations (scenarios, participants, steps, groups)
+    #[command(long_about = "Runtime model operations for Runtime View diagrams.
+
+Manage runtime view elements including:
+  • Scenarios - Runtime flows (use cases, features)
+  • Participants - Elements from context/logic view involved in scenarios
+  • Steps - Interactions between participants (sync, async, return, lost)
+  • Groups - Control flow (alt, loop, par, opt, break, critical)
+  • Notes - Annotations
+  • Dividers - Section markers
+
+EXAMPLES:
+  # Add a scenario
+  sys-design runtime-model -m model.yaml add scenario USER_LOGIN -n \"User Login\"
+
+  # Add participants (must exist in context or logic view)
+  sys-design runtime-model -m model.yaml add participant USER_LOGIN USER -t actor
+
+  # Add a step
+  sys-design runtime-model -m model.yaml add step USER_LOGIN USER APP \"Login request\"
+
+  # Add an alt group with branches
+  sys-design runtime-model -m model.yaml add group USER_LOGIN alt \"Result\" --branches success,failure
+
+  # Add step to a specific branch
+  sys-design runtime-model -m model.yaml add step USER_LOGIN APP USER \"Token\" -t return --group \"Result\" --branch success")]
+    RuntimeModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: RuntimeModelCommand,
+    },
+
+    /// Code model CRUD operations (packages, dependencies)
+    #[command(long_about = "Code model operations.
+
+Manage code-level elements:
+  • Packages - Code packages (libraries, services, modules)
+  • Dependencies - Inter-package dependencies
+
+EXAMPLES:
+  # Add a package
+  sys-design code-model -m model.yaml add package CORE_LIB -n \"Core Library\" -l rust
+
+  # Add a dependency
+  sys-design code-model -m model.yaml add dependency CORE_LIB UTIL_LIB
+
+  # List all packages
+  sys-design code-model -m model.yaml list packages")]
+    CodeModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: CodeModelCommand,
+    },
+
+    /// Build model CRUD operations (artifacts, dependencies)
+    #[command(long_about = "Build model operations.
+
+Manage build-level elements:
+  • Artifacts - Build outputs (binaries, libraries, docker images, archives)
+  • Dependencies - Inter-artifact build dependencies
+
+EXAMPLES:
+  # Add an artifact
+  sys-design build-model -m model.yaml add artifact CORE_BIN -n \"Core Binary\" --build-tool cargo --output-type binary
+
+  # Add a dependency
+  sys-design build-model -m model.yaml add dependency CORE_BIN UTIL_LIB
+
+  # List all artifacts
+  sys-design build-model -m model.yaml list artifacts")]
+    BuildModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: BuildModelCommand,
+    },
+
+    /// Delivery model CRUD operations (packages)
+    #[command(long_about = "Delivery model operations.
+
+Manage delivery-level elements:
+  • Packages - Delivery packages (container images, archives, installers, etc.)
+
+EXAMPLES:
+  # Add a package
+  sys-design delivery-model -m model.yaml add package CORE_IMG -n \"Core Image\" --delivery-type container_image -v 1.0.0
+
+  # Add a package with artifact references
+  sys-design delivery-model -m model.yaml add package CORE_IMG -n \"Core Image\" --artifacts CORE_BIN,UTIL_BIN --registry registry.example.com
+
+  # List all packages
+  sys-design delivery-model -m model.yaml list packages")]
+    DeliveryModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: DeliveryModelCommand,
+    },
+
+    /// Deployment model CRUD operations (environments, nodes, services, network-links)
+    #[command(long_about = "Deployment model operations.
+
+Manage deployment-level elements:
+  • Environments - Deployment environments (production, staging, etc.)
+  • Nodes - Deployment targets (servers, VMs, containers, k8s clusters)
+  • Services - Deployed services (reference delivery packages)
+  • Network Links - Inter-service network connections
+
+EXAMPLES:
+  # Add an environment
+  sys-design deployment-model -m model.yaml add environment PROD -n \"Production\"
+
+  # Add a node
+  sys-design deployment-model -m model.yaml add node K8S_CLUSTER -n \"K8s\" -t kubernetes --environment PROD
+
+  # Add a service
+  sys-design deployment-model -m model.yaml add service API_SVC -n \"API\" --delivery-package CORE_IMG --target-node K8S_CLUSTER --replicas 3 --port 8080
+
+  # Add a network link
+  sys-design deployment-model -m model.yaml add network-link API_TO_DB --from API_SVC --to DB_SVC -p http --port 5432
+
+  # List all services
+  sys-design deployment-model -m model.yaml list services")]
+    DeploymentModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: DeploymentModelCommand,
     },
 }
 
 /// Generate command subcommands
 #[derive(Subcommand)]
 pub enum GenerateCommand {
-    /// Generate context model diagram (C4 Context diagram)
+    /// Generate C4 Context diagram (system context view)
+    #[command(long_about = "Generate a C4 Context diagram showing the system as a black box.
+
+Displays:
+  • Central system with its boundaries
+  • Actors (users) interacting with the system
+  • External systems and their connections
+  • Interfaces with protocol types
+
+OUTPUT: PlantUML C4 Context diagram code")]
     ContextModelDiagram,
 
-    /// Generate concept model diagram (hierarchy rules)
+    /// Generate concept model diagram (hierarchy rules visualization)
+    #[command(long_about = "Generate a diagram showing the concept model hierarchy rules.
+
+Displays:
+  • Hierarchy levels (SYSTEM, SUBSYSTEM, COMPONENT, etc.)
+  • Containment relationships between levels
+  • Element types defined in the model
+
+OUTPUT: PlantUML diagram showing the hierarchy structure")]
     ConceptModelDiagram,
 
-    /// Generate logic model diagram (concrete implementation)
+    /// Generate logic view diagram (concrete implementation)
+    #[command(long_about = "Generate a logic view diagram showing the concrete implementation.
+
+Displays:
+  • System with all subsystems, components, modules
+  • Containment hierarchy
+  • Interfaces and their providers
+  • Dependencies between modules
+
+ARGUMENTS:
+  [ROOT] - Optional root element ID to generate a partial diagram.
+           If not specified, generates from system root.
+
+OUTPUT: PlantUML component diagram with nested elements
+
+EXAMPLES:
+  # Generate full diagram
+  sys-design generate -m model.yaml logic-model-diagram
+
+  # Generate from specific subsystem
+  sys-design generate -m model.yaml logic-model-diagram CTRL_SUBSYSTEM")]
     LogicModelDiagram {
         /// Root element ID to start from (optional, defaults to system root)
         root: Option<String>,
+    },
+
+    /// Generate runtime view sequence diagram
+    #[command(long_about = "Generate a PlantUML sequence diagram for a runtime scenario.
+
+Displays:
+  • Participants as lifelines (actors, systems, components)
+  • Interaction steps with arrows (sync, async, return, lost)
+  • Control flow groups (alt, loop, par, opt, etc.)
+  • Notes and dividers
+
+ARGUMENTS:
+  [SCENARIO_ID] - Scenario ID to generate. Required when multiple scenarios exist.
+                   If only one scenario exists, it is used automatically.
+
+OUTPUT: PlantUML sequence diagram
+
+EXAMPLES:
+  # Generate specific scenario
+  sys-design generate -m model.yaml runtime-model-diagram USER_LOGIN
+
+  # Generate to file
+  sys-design generate -m model.yaml -o login.puml runtime-model-diagram USER_LOGIN")]
+    RuntimeModelDiagram {
+        /// Scenario ID to generate (required when multiple scenarios exist)
+        scenario_id: Option<String>,
+    },
+
+    /// Generate code model diagram
+    #[command(long_about = "Generate a code model diagram showing packages and dependencies.
+
+Displays:
+  • Packages with their programming languages
+  • Package-to-package dependencies
+  • Mapping notes to logic view elements
+
+OUTPUT: PlantUML package diagram")]
+    CodeModelDiagram,
+
+    /// Generate build model diagram
+    #[command(long_about = "Generate a build model diagram showing artifacts and dependencies.
+
+Displays:
+  • Build artifacts with their output types
+  • Artifact-to-artifact dependencies
+  • Source package mapping notes
+
+OUTPUT: PlantUML artifact diagram")]
+    BuildModelDiagram,
+
+    /// Generate delivery model diagram
+    #[command(long_about = "Generate a delivery model diagram showing packages and their details.
+
+Displays:
+  • Delivery packages with their delivery types
+  • Version and artifact mapping notes
+  • Registry information
+
+OUTPUT: PlantUML package diagram")]
+    DeliveryModelDiagram,
+
+    /// Generate deployment model diagram
+    #[command(long_about = "Generate a deployment model diagram showing environments, nodes, and services.
+
+Displays:
+  • Environments as rectangles
+  • Nodes within environments with their types
+  • Deployed services with delivery package, replicas, port
+  • Network links between services
+
+ARGUMENTS:
+  [ENVIRONMENT_ID] - Optional environment ID to filter the diagram.
+                      Required when multiple environments exist.
+                      If only one environment exists, it is used automatically.
+
+OUTPUT: PlantUML deployment diagram
+
+EXAMPLES:
+  # Generate full deployment diagram
+  sys-design generate -m model.yaml deployment-model-diagram
+
+  # Generate for specific environment
+  sys-design generate -m model.yaml deployment-model-diagram PROD")]
+    DeploymentModelDiagram {
+        /// Environment ID to filter (required when multiple environments exist)
+        environment_id: Option<String>,
     },
 }
 
 #[derive(ValueEnum, Clone, Debug)]
 pub enum DiagramType {
-    /// Context diagram (system as black box)
+    /// Context diagram - System context view with actors and external systems
     Context,
-    /// Logic Architecture Concept Model (defines hierarchy rules)
+    /// Concept model - Hierarchy rules defining allowed element relationships
     ConceptModel,
-    /// Logic View (concrete implementation, must follow concept model)
+    /// Logic view - Concrete implementation following concept model rules
     LogicView,
+    /// Runtime view - Dynamic behavior as sequence diagrams
+    RuntimeView,
+    /// Code model - Code packages and dependencies
+    CodeModel,
+    /// Build model - Build artifacts and dependencies
+    BuildModel,
+    /// Delivery model - Delivery packages and registries
+    DeliveryModel,
+    /// Deployment model - Environments, nodes, services, network links
+    DeploymentModel,
 }
 
 #[derive(Subcommand)]
 pub enum ContextModelCommand {
-    /// Add an element
+    /// Add elements to the context model
     #[command(subcommand)]
     Add(AddCommand),
 
-    /// Remove an element
+    /// Remove elements from the context model
     #[command(subcommand)]
     Remove(RemoveCommand),
 
-    /// List elements
+    /// List all elements of a specific type
+    #[command(long_about = "List all elements of a specific type.
+
+ELEMENT TYPES:
+  • system - The central system
+  • actors - All actors (internal and external)
+  • external-systems - All external systems
+  • interfaces - All defined interfaces
+  • relations - Interface providers and usages")]
     List {
-        /// Element type to list
+        /// Element type: system, actors, external-systems, interfaces, relations
         #[arg(value_enum)]
         element: ListElement,
     },
 
-    /// Show element details
+    /// Show detailed information about an element
     Show {
-        /// Element ID
+        /// Element ID to display
         id: String,
     },
 }
 
 #[derive(Subcommand)]
 pub enum AddCommand {
-    /// Add or update the system
+    /// Add or update the central system (singleton, only one system per context)
     System {
-        /// System ID
+        /// System ID (UPPER_SNAKE_CASE, e.g., MY_SYSTEM, SNP)
         id: String,
-        /// System name
+        /// System display name
         #[arg(short, long)]
         name: Option<String>,
         /// System description
@@ -134,89 +543,113 @@ pub enum AddCommand {
         desc: Option<String>,
     },
 
-    /// Add an actor
+    /// Add an actor (person interacting with the system)
+    #[command(long_about = "Add an actor to the context model.
+
+Actor types:
+  • external - Outside the organization (e.g., customers, partners)
+  • internal - Inside the organization (e.g., admins, operators)")]
     Actor {
-        /// Actor ID
+        /// Actor ID (UPPER_SNAKE_CASE, e.g., USER, ADMIN)
         id: String,
-        /// Actor name
+        /// Actor display name
         #[arg(short, long)]
         name: Option<String>,
         /// Actor description
         #[arg(short = 'd', long)]
         desc: Option<String>,
-        /// Actor type (external or internal)
+        /// Actor type: external (outside org) or internal (inside org)
         #[arg(short = 't', long, value_enum, default_value = "external")]
         actor_type: ActorTypeArg,
     },
 
-    /// Add an external system
+    /// Add an external system (other systems the main system connects to)
     ExternalSystem {
-        /// External system ID
+        /// External system ID (UPPER_SNAKE_CASE, e.g., PAYMENT_GATEWAY)
         id: String,
-        /// External system name
+        /// External system display name
         #[arg(short, long)]
         name: Option<String>,
         /// External system description
         #[arg(short = 'd', long)]
         desc: Option<String>,
-        /// Technology used
+        /// Technology used (e.g., \"REST API\", \"gRPC\", \"Kafka\")
         #[arg(short, long)]
         tech: Option<String>,
     },
 
-    /// Add an interface
+    /// Add an interface (API/protocol definition)
+    #[command(long_about = "Add an interface definition to the context model.
+
+Protocol types:
+  • rest - RESTful HTTP API
+  • grpc - gRPC protocol
+  • graphql - GraphQL API
+  • websocket - WebSocket connection
+  • mqtt - MQTT messaging
+  • amqp - AMQP messaging")]
     Interface {
-        /// Interface ID
+        /// Interface ID (UPPER_SNAKE_CASE, e.g., ITF_API, ITF_PAYMENT)
         id: String,
-        /// Interface name
+        /// Interface display name
         #[arg(short, long)]
         name: Option<String>,
         /// Interface description
         #[arg(short = 'd', long)]
         desc: Option<String>,
-        /// Protocol type
+        /// Protocol type: rest, grpc, graphql, websocket, mqtt, amqp
         #[arg(short = 'p', long, value_enum, default_value = "rest")]
         protocol: ProtocolArg,
     },
 
-    /// Add a provide relation (system provides interface)
+    /// Add a provide relation (system provides an interface)
+    #[command(long_about = "Define that a system provides an interface.
+
+This establishes which system exposes which interface.
+Both system and interface must exist before creating this relation.")]
     ProvideRelation {
-        /// System ID
+        /// System ID that provides the interface
         system_id: String,
-        /// Interface ID
+        /// Interface ID being provided
         interface_id: String,
     },
 
-    /// Add an interface usage (actor uses interface)
+    /// Add an interface usage (actor/system uses an interface)
+    #[command(long_about = "Define that an actor or system uses an interface.
+
+This establishes dependencies between actors/systems and interfaces.
+Both actor/system and interface must exist before creating this relation.")]
     InterfaceUsage {
-        /// Actor or system ID
+        /// Actor or system ID that uses the interface
         actor_id: String,
-        /// Interface ID
+        /// Interface ID being used
         interface_id: String,
     },
 }
 
 #[derive(Subcommand)]
 pub enum RemoveCommand {
-    /// Remove an actor
+    /// Remove an actor from the context model
     Actor {
-        /// Actor ID
+        /// Actor ID to remove
         id: String,
     },
 
-    /// Remove an external system
+    /// Remove an external system from the context model
     ExternalSystem {
-        /// External system ID
+        /// External system ID to remove
         id: String,
     },
 
-    /// Remove an interface
+    /// Remove an interface from the context model
+    #[command(long_about = "Remove an interface.
+Note: This also removes related provide relations and interface usages.")]
     Interface {
-        /// Interface ID
+        /// Interface ID to remove
         id: String,
     },
 
-    /// Remove a provide relation
+    /// Remove a provide relation (system no longer provides interface)
     ProvideRelation {
         /// System ID
         system_id: String,
@@ -224,9 +657,9 @@ pub enum RemoveCommand {
         interface_id: String,
     },
 
-    /// Remove an interface usage
+    /// Remove an interface usage (actor/system no longer uses interface)
     InterfaceUsage {
-        /// Actor ID
+        /// Actor or system ID
         actor_id: String,
         /// Interface ID
         interface_id: String,
@@ -290,35 +723,44 @@ impl From<ProtocolArg> for crate::model::c4::context::Protocol {
 
 #[derive(Subcommand)]
 pub enum LogicModelCommand {
-    /// Add an element
+    /// Add elements to the logic model
     #[command(subcommand)]
     Add(LogicAddCommand),
 
-    /// Remove an element
+    /// Remove elements from the logic model
     #[command(subcommand)]
     Remove(LogicRemoveCommand),
 
-    /// List elements
+    /// List all elements of a specific type
+    #[command(long_about = "List all elements of a specific type.
+
+ELEMENT TYPES:
+  • system - The top-level system
+  • subsystems - All subsystems
+  • components - All components
+  • modules - All modules
+  • interfaces - All interfaces
+  • dependencies - All module dependencies")]
     List {
-        /// Element type to list
+        /// Element type: system, subsystems, components, modules, interfaces, dependencies
         #[arg(value_enum)]
         element: LogicListElement,
     },
 
-    /// Show element details
+    /// Show detailed information about an element
     Show {
-        /// Element ID
+        /// Element ID to display
         id: String,
     },
 }
 
 #[derive(Subcommand)]
 pub enum LogicAddCommand {
-    /// Add or update the system
+    /// Add or update the system (top-level container, singleton)
     System {
-        /// System ID
+        /// System ID (UPPER_SNAKE_CASE, e.g., MY_SYSTEM, SNP)
         id: String,
-        /// System name
+        /// System display name
         #[arg(short, long)]
         name: Option<String>,
         /// System description
@@ -326,11 +768,11 @@ pub enum LogicAddCommand {
         desc: Option<String>,
     },
 
-    /// Add a subsystem
+    /// Add a subsystem (major division within the system)
     Subsystem {
-        /// Subsystem ID
+        /// Subsystem ID (UPPER_SNAKE_CASE, e.g., CTRL_SUBSYSTEM)
         id: String,
-        /// Subsystem name
+        /// Subsystem display name
         #[arg(short, long)]
         name: Option<String>,
         /// Subsystem description
@@ -338,26 +780,31 @@ pub enum LogicAddCommand {
         desc: Option<String>,
     },
 
-    /// Add a component to system or subsystem
+    /// Add a component (functional unit within subsystem or system)
+    #[command(long_about = "Add a component to the system or a subsystem.
+
+Components are functional units that can contain modules.
+If --subsystem is specified, the component belongs to that subsystem.
+Otherwise, it belongs directly to the system.")]
     Component {
-        /// Component ID
+        /// Component ID (UPPER_SNAKE_CASE, e.g., CTRL, MOTOR)
         id: String,
-        /// Component name
+        /// Component display name
         #[arg(short, long)]
         name: Option<String>,
         /// Component description
         #[arg(short = 'd', long)]
         desc: Option<String>,
-        /// Parent subsystem ID (optional, if not specified adds to system)
+        /// Parent subsystem ID (optional, defaults to system level)
         #[arg(short, long)]
         subsystem: Option<String>,
     },
 
-    /// Add a module (standalone element)
+    /// Add a module (unit within a component)
     Module {
-        /// Module ID
+        /// Module ID (UPPER_SNAKE_CASE, e.g., MOTOR_CTRL, POSITION_LOOP)
         id: String,
-        /// Module name
+        /// Module display name
         #[arg(short, long)]
         name: Option<String>,
         /// Module description
@@ -365,11 +812,11 @@ pub enum LogicAddCommand {
         desc: Option<String>,
     },
 
-    /// Add a submodule (standalone element)
+    /// Add a submodule (nested unit within a module, can be recursive)
     Submodule {
-        /// Submodule ID
+        /// Submodule ID (UPPER_SNAKE_CASE)
         id: String,
-        /// Submodule name
+        /// Submodule display name
         #[arg(short, long)]
         name: Option<String>,
         /// Submodule description
@@ -377,14 +824,18 @@ pub enum LogicAddCommand {
         desc: Option<String>,
     },
 
-    /// Add a generic element based on concept model
+    /// Add a generic element based on concept model type
+    #[command(long_about = "Add a generic element with a type defined in the concept model.
+
+This allows adding elements of any type defined in the concept model,
+not just the predefined types (system, subsystem, component, etc.).")]
     Element {
         /// Element type (must be defined in concept model)
         #[arg(value_name = "TYPE")]
         type_name: String,
-        /// Element ID
+        /// Element ID (UPPER_SNAKE_CASE)
         id: String,
-        /// Element name
+        /// Element display name
         #[arg(short, long)]
         name: Option<String>,
         /// Element description
@@ -392,11 +843,11 @@ pub enum LogicAddCommand {
         desc: Option<String>,
     },
 
-    /// Add an interface (standalone element)
+    /// Add an interface (API/contract definition)
     Interface {
-        /// Interface ID
+        /// Interface ID (UPPER_SNAKE_CASE, e.g., ITF_MOTOR, ITF_CONFIG)
         id: String,
-        /// Interface name
+        /// Interface display name
         #[arg(short, long)]
         name: Option<String>,
         /// Interface description
@@ -404,15 +855,26 @@ pub enum LogicAddCommand {
         desc: Option<String>,
     },
 
-    /// Add a provide relation (element provides interface)
+    /// Add a provide relation (element provides an interface)
+    #[command(long_about = "Define that an element provides an interface.
+
+This establishes which element exposes which interface.
+Both element and interface must exist before creating this relation.")]
     ProvideRelation {
         /// Element ID that provides the interface
         element_id: String,
-        /// Interface ID to provide
+        /// Interface ID being provided
         interface_id: String,
     },
 
-    /// Add a containment relation (parent contains child element)
+    /// Add a containment relation (parent element contains child)
+    #[command(long_about = "Define that a parent element contains a child element.
+
+This establishes the hierarchy structure.
+Example: system contains subsystem, subsystem contains component.
+
+Both parent and child elements must exist before creating this relation.
+Must conform to the concept model's hierarchy rules.")]
     Containment {
         /// Parent element ID
         parent_id: String,
@@ -420,15 +882,23 @@ pub enum LogicAddCommand {
         child_id: String,
     },
 
-    /// Add a dependency (module uses interface)
+    /// Add a dependency (module depends on an interface)
+    #[command(long_about = "Define that a module depends on an interface.
+
+This establishes that a module uses/requires an interface.
+Both module and interface must exist before creating this relation.")]
     Dependency {
         /// Module ID that has the dependency
         module_id: String,
-        /// Interface ID that is being used
+        /// Interface ID being used
         interface_id: String,
     },
 
-    /// Expose an interface from a component
+    /// Expose an interface from a component (make visible externally)
+    #[command(long_about = "Expose an interface from a component.
+
+This makes an interface visible at the component level,
+allowing external elements to use it through the component.")]
     Expose {
         /// Component ID
         component_id: String,
@@ -439,43 +909,45 @@ pub enum LogicAddCommand {
 
 #[derive(Subcommand)]
 pub enum LogicRemoveCommand {
-    /// Remove a subsystem
+    /// Remove a subsystem from the logic model
     Subsystem {
-        /// Subsystem ID
+        /// Subsystem ID to remove
         id: String,
     },
 
-    /// Remove a component
+    /// Remove a component from the logic model
     Component {
-        /// Component ID
+        /// Component ID to remove
         id: String,
     },
 
-    /// Remove a module
+    /// Remove a module from a component
+    #[command(long_about = "Remove a module from a specific component.
+Note: This also removes nested submodules and dependencies.")]
     Module {
-        /// Component ID
+        /// Parent component ID
         component_id: String,
-        /// Module ID
+        /// Module ID to remove
         id: String,
     },
 
-    /// Remove an interface
+    /// Remove an interface from a module
     Interface {
-        /// Component ID
+        /// Parent component ID
         component_id: String,
-        /// Module ID
+        /// Parent module ID
         module_id: String,
-        /// Interface ID
+        /// Interface ID to remove
         id: String,
     },
 
-    /// Remove a dependency
+    /// Remove a dependency from a module
     Dependency {
-        /// Component ID
+        /// Parent component ID
         component_id: String,
         /// Module ID
         module_id: String,
-        /// Interface ID
+        /// Interface ID of the dependency
         interface_id: String,
     },
 }
@@ -503,11 +975,17 @@ pub enum ConceptModelCommand {
     Remove(ConceptModelRemoveCommand),
 
     /// List all hierarchy levels and element types
+    #[command(long_about = "List all hierarchy levels and element types defined in the concept model.
+
+Shows:
+  • All hierarchy levels with their names and IDs
+  • Element types that each level can contain
+  • All registered element types")]
     List,
 
-    /// Show level details
+    /// Show detailed information about a hierarchy level
     Show {
-        /// Level ID
+        /// Level ID to display (e.g., SYSTEM, COMPONENT)
         id: String,
     },
 }
@@ -515,31 +993,47 @@ pub enum ConceptModelCommand {
 #[derive(Subcommand)]
 pub enum ConceptModelAddCommand {
     /// Add an element type (e.g., subsystem, component, module)
+    #[command(long_about = "Register a new element type in the concept model.
+
+Element types define what kinds of elements can exist in the logic view.
+Common types: subsystem, component, module, submodule, layer, service")]
     Element {
-        /// Element type name
+        /// Element type name (e.g., subsystem, component, module)
         #[arg(value_name = "TYPE")]
         type_name: String,
     },
 
-    /// Add a containment relationship (parent can contain child)
+    /// Add a containment relationship (parent type can contain child type)
+    #[command(long_about = "Define that a parent element type can contain a child element type.
+
+This establishes the allowed hierarchy structure.
+Example: A 'subsystem' can contain 'component' elements.
+
+Both element types should exist before creating this rule.")]
     Containment {
-        /// Parent element type
+        /// Parent element type (e.g., subsystem)
         parent: String,
-        /// Child element type
+        /// Child element type (e.g., component)
         child: String,
     },
 
-    /// Add a hierarchy level
+    /// Add a hierarchy level with containment rules
+    #[command(long_about = "Add a hierarchy level with its containment rules.
+
+Hierarchy levels define the architectural layers and what they can contain.
+Example: SYSTEM level can contain SUBSYSTEM and COMPONENT types.
+
+Use -c/--can-contain with comma-separated list of allowed child types.")]
     Level {
-        /// Level ID (e.g., SYSTEM, COMPONENT, LAYER)
+        /// Level ID (UPPER_CASE, e.g., SYSTEM, COMPONENT, LAYER)
         id: String,
-        /// Level name
+        /// Level display name (e.g., \"system\", \"component\")
         #[arg(short, long)]
         name: Option<String>,
         /// Level description
         #[arg(short = 'd', long)]
         desc: Option<String>,
-        /// Types this level can contain (comma-separated)
+        /// Types this level can contain (comma-separated, e.g., -c SUBSYSTEM,COMPONENT)
         #[arg(short, long, value_delimiter = ',')]
         can_contain: Vec<String>,
     },
@@ -547,16 +1041,885 @@ pub enum ConceptModelAddCommand {
 
 #[derive(Subcommand)]
 pub enum ConceptModelRemoveCommand {
-    /// Remove an element type
+    /// Remove an element type from the concept model
+    #[command(long_about = "Remove an element type.
+Note: This may invalidate existing logic view elements of this type.")]
     Element {
-        /// Element type name
+        /// Element type name to remove
         #[arg(value_name = "TYPE")]
         type_name: String,
     },
 
-    /// Remove a hierarchy level
+    /// Remove a hierarchy level from the concept model
+    #[command(long_about = "Remove a hierarchy level.
+Note: This may invalidate hierarchy rules referencing this level.")]
     Level {
-        /// Level ID
+        /// Level ID to remove
         id: String,
     },
+}
+
+// ==================== Runtime Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum RuntimeModelCommand {
+    /// Add elements to the runtime model
+    #[command(subcommand)]
+    Add(RuntimeAddCommand),
+
+    /// Remove elements from the runtime model
+    #[command(subcommand)]
+    Remove(RuntimeRemoveCommand),
+
+    /// List elements
+    #[command(long_about = "List runtime model elements.
+
+ELEMENT TYPES:
+  • scenarios - All scenarios
+  • participants - Participants in a scenario (requires --scenario)
+  • steps - Steps in a scenario (requires --scenario)
+  • groups - Groups in a scenario (requires --scenario)")]
+    List {
+        /// Element type: scenarios, participants, steps, groups
+        #[arg(value_enum)]
+        element: RuntimeListElement,
+        /// Scenario ID (required for participants, steps, groups)
+        #[arg(short, long)]
+        scenario: Option<String>,
+    },
+
+    /// Show detailed scenario information
+    Show {
+        /// Scenario ID to display
+        scenario_id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum RuntimeAddCommand {
+    /// Add a new scenario (runtime flow)
+    Scenario {
+        /// Scenario ID (UPPER_SNAKE_CASE, e.g., USER_LOGIN, DATA_SYNC)
+        id: String,
+        /// Scenario display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Scenario description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+
+    /// Add a participant (references element from context/logic view)
+    #[command(long_about = "Add a participant to a scenario.
+
+Participant types:
+  • actor - Person/external entity
+  • participant - Generic component
+  • boundary - System boundary/interface
+  • control - Controller/coordinator
+  • entity - Data entity
+  • database - Data store
+  • collections - Collection of items
+  • queue - Message queue
+
+The element_id must exist in the context diagram or logic view.")]
+    Participant {
+        /// Scenario ID to add participant to
+        scenario_id: String,
+        /// Element ID from context diagram or logic view
+        element_id: String,
+        /// Participant type (default: participant)
+        #[arg(short = 't', long, value_enum, default_value = "participant")]
+        participant_type: ParticipantTypeArg,
+        /// Display alias
+        #[arg(long)]
+        alias: Option<String>,
+        /// Color (e.g., #FF0000, red)
+        #[arg(long)]
+        color: Option<String>,
+    },
+
+    /// Add an interaction step
+    #[command(long_about = "Add an interaction step between participants.
+
+Step types:
+  • sync - Synchronous call (solid arrow ->)
+  • async - Asynchronous message (open arrow ->>)
+  • return - Return/response (dashed arrow -->)
+  • lost - Lost message (circle-x arrow -[o]->)
+
+The order is auto-assigned (max + 1).")]
+    Step {
+        /// Scenario ID
+        scenario_id: String,
+        /// Source participant element ID
+        from: String,
+        /// Target participant element ID
+        to: String,
+        /// Message content
+        message: String,
+        /// Step type: sync, async, return, lost
+        #[arg(short = 't', long, value_enum, default_value = "sync")]
+        step_type: StepTypeArg,
+        /// Protocol (e.g., REST, gRPC)
+        #[arg(short = 'p', long)]
+        protocol: Option<String>,
+        /// Color
+        #[arg(long)]
+        color: Option<String>,
+        /// Activate target lifeline
+        #[arg(long)]
+        activate: Option<bool>,
+        /// Target group label (one level only)
+        #[arg(long)]
+        group: Option<String>,
+        /// Target branch label (for alt groups only)
+        #[arg(long)]
+        branch: Option<String>,
+    },
+
+    /// Add a control flow group
+    #[command(long_about = "Add a control flow group (UML combined fragment).
+
+Group types:
+  • alt - Conditional (if/else), requires --branches
+  • opt - Optional execution
+  • loop - Iteration
+  • par - Parallel execution
+  • break - Exception/break handling
+  • critical - Atomic/critical section
+  • group - Generic named grouping
+
+For alt groups, specify branches with --branches (comma-separated).
+Non-alt groups use inline blocks.")]
+    Group {
+        /// Scenario ID
+        scenario_id: String,
+        /// Group type: alt, opt, loop, par, break, critical, group
+        group_type: GroupTypeArg,
+        /// Group label
+        label: String,
+        /// Branch labels for alt groups (comma-separated, e.g., success,failure)
+        #[arg(short, long, value_delimiter = ',')]
+        branches: Vec<String>,
+        /// Parent group label (one level only)
+        #[arg(long)]
+        group: Option<String>,
+        /// Parent branch label (for alt parent group)
+        #[arg(long)]
+        branch: Option<String>,
+    },
+
+    /// Add an annotation note
+    Note {
+        /// Scenario ID
+        scenario_id: String,
+        /// Note position: left, right, over
+        position: NotePositionArg,
+        /// Target participant element ID
+        target: String,
+        /// Note text
+        text: String,
+    },
+
+    /// Add a section divider
+    Divider {
+        /// Scenario ID
+        scenario_id: String,
+        /// Divider label
+        label: String,
+        /// Insert after step with this order number
+        #[arg(long)]
+        after_order: u32,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum RuntimeRemoveCommand {
+    /// Remove a scenario
+    Scenario {
+        /// Scenario ID to remove
+        id: String,
+    },
+
+    /// Remove a participant (cascades to referencing steps)
+    #[command(long_about = "Remove a participant.
+Note: This also removes all steps that reference this participant.")]
+    Participant {
+        /// Scenario ID
+        scenario_id: String,
+        /// Participant element ID to remove
+        element_id: String,
+    },
+
+    /// Remove a step by order number
+    Step {
+        /// Scenario ID
+        scenario_id: String,
+        /// Step order number
+        order: u32,
+        /// Target group label (one level only)
+        #[arg(long)]
+        group: Option<String>,
+        /// Target branch label (for alt groups)
+        #[arg(long)]
+        branch: Option<String>,
+    },
+
+    /// Remove a group (cascades to entire subtree)
+    #[command(long_about = "Remove a group.
+Note: This removes the entire group subtree including all nested steps and groups.")]
+    Group {
+        /// Scenario ID
+        scenario_id: String,
+        /// Group label to remove
+        label: String,
+        /// Parent group label (one level only)
+        #[arg(long)]
+        group: Option<String>,
+        /// Parent branch label (for alt parent group)
+        #[arg(long)]
+        branch: Option<String>,
+    },
+
+    /// Remove a note by index
+    Note {
+        /// Scenario ID
+        scenario_id: String,
+        /// Note index (0-based)
+        index: usize,
+    },
+
+    /// Remove a divider by index
+    Divider {
+        /// Scenario ID
+        scenario_id: String,
+        /// Divider index (0-based)
+        index: usize,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum RuntimeListElement {
+    Scenarios,
+    Participants,
+    Steps,
+    Groups,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum ParticipantTypeArg {
+    Participant,
+    Actor,
+    Boundary,
+    Control,
+    Entity,
+    Database,
+    Collections,
+    Queue,
+}
+
+impl From<ParticipantTypeArg> for crate::model::runtime::ParticipantType {
+    fn from(value: ParticipantTypeArg) -> Self {
+        match value {
+            ParticipantTypeArg::Participant => crate::model::runtime::ParticipantType::Participant,
+            ParticipantTypeArg::Actor => crate::model::runtime::ParticipantType::Actor,
+            ParticipantTypeArg::Boundary => crate::model::runtime::ParticipantType::Boundary,
+            ParticipantTypeArg::Control => crate::model::runtime::ParticipantType::Control,
+            ParticipantTypeArg::Entity => crate::model::runtime::ParticipantType::Entity,
+            ParticipantTypeArg::Database => crate::model::runtime::ParticipantType::Database,
+            ParticipantTypeArg::Collections => crate::model::runtime::ParticipantType::Collections,
+            ParticipantTypeArg::Queue => crate::model::runtime::ParticipantType::Queue,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum StepTypeArg {
+    Sync,
+    Async,
+    Return,
+    Lost,
+}
+
+impl From<StepTypeArg> for crate::model::runtime::StepType {
+    fn from(value: StepTypeArg) -> Self {
+        match value {
+            StepTypeArg::Sync => crate::model::runtime::StepType::Sync,
+            StepTypeArg::Async => crate::model::runtime::StepType::Async,
+            StepTypeArg::Return => crate::model::runtime::StepType::Return,
+            StepTypeArg::Lost => crate::model::runtime::StepType::Lost,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum GroupTypeArg {
+    Alt,
+    Opt,
+    Loop,
+    Par,
+    Break,
+    Critical,
+    Group,
+}
+
+impl From<GroupTypeArg> for crate::model::runtime::GroupType {
+    fn from(value: GroupTypeArg) -> Self {
+        match value {
+            GroupTypeArg::Alt => crate::model::runtime::GroupType::Alt,
+            GroupTypeArg::Opt => crate::model::runtime::GroupType::Opt,
+            GroupTypeArg::Loop => crate::model::runtime::GroupType::Loop,
+            GroupTypeArg::Par => crate::model::runtime::GroupType::Par,
+            GroupTypeArg::Break => crate::model::runtime::GroupType::Break,
+            GroupTypeArg::Critical => crate::model::runtime::GroupType::Critical,
+            GroupTypeArg::Group => crate::model::runtime::GroupType::Group,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum NotePositionArg {
+    Left,
+    Right,
+    Over,
+}
+
+impl From<NotePositionArg> for crate::model::runtime::NotePosition {
+    fn from(value: NotePositionArg) -> Self {
+        match value {
+            NotePositionArg::Left => crate::model::runtime::NotePosition::Left,
+            NotePositionArg::Right => crate::model::runtime::NotePosition::Right,
+            NotePositionArg::Over => crate::model::runtime::NotePosition::Over,
+        }
+    }
+}
+
+// ==================== Code Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum CodeModelCommand {
+    /// Add elements to the code model
+    #[command(subcommand)]
+    Add(CodeModelAddCommand),
+
+    /// Remove elements from the code model
+    #[command(subcommand)]
+    Remove(CodeModelRemoveCommand),
+
+    /// List all elements of a specific type
+    List {
+        /// Element type: packages, dependencies
+        #[arg(value_enum)]
+        element: CodeModelListElement,
+    },
+
+    /// Show detailed information about an element
+    Show {
+        /// Element ID to display
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum CodeModelAddCommand {
+    /// Add a code package (library, service, module)
+    Package {
+        /// Package ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Package display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Package description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Programming language
+        #[arg(short = 'l', long, value_enum)]
+        language: Option<LanguageArg>,
+        /// Framework (e.g., actix, spring)
+        #[arg(long)]
+        framework: Option<String>,
+        /// Source code path
+        #[arg(long)]
+        path: Option<String>,
+        /// Reference to logic_view element ID
+        #[arg(long)]
+        element_id: Option<String>,
+    },
+
+    /// Add a dependency between packages
+    Dependency {
+        /// Source package ID
+        from: String,
+        /// Target package ID
+        to: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum CodeModelRemoveCommand {
+    /// Remove a package
+    Package {
+        /// Package ID to remove
+        id: String,
+    },
+
+    /// Remove a dependency
+    Dependency {
+        /// Source package ID
+        from: String,
+        /// Target package ID
+        to: String,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum CodeModelListElement {
+    Packages,
+    Dependencies,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum LanguageArg {
+    Rust,
+    Java,
+    Python,
+    Go,
+    TypeScript,
+    Cpp,
+    CSharp,
+    JavaScript,
+    Kotlin,
+    Swift,
+}
+
+impl From<LanguageArg> for crate::model::code::Language {
+    fn from(value: LanguageArg) -> Self {
+        match value {
+            LanguageArg::Rust => crate::model::code::Language::Rust,
+            LanguageArg::Java => crate::model::code::Language::Java,
+            LanguageArg::Python => crate::model::code::Language::Python,
+            LanguageArg::Go => crate::model::code::Language::Go,
+            LanguageArg::TypeScript => crate::model::code::Language::TypeScript,
+            LanguageArg::Cpp => crate::model::code::Language::Cpp,
+            LanguageArg::CSharp => crate::model::code::Language::CSharp,
+            LanguageArg::JavaScript => crate::model::code::Language::JavaScript,
+            LanguageArg::Kotlin => crate::model::code::Language::Kotlin,
+            LanguageArg::Swift => crate::model::code::Language::Swift,
+        }
+    }
+}
+
+// ==================== Build Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum BuildModelCommand {
+    /// Add elements to the build model
+    #[command(subcommand)]
+    Add(BuildModelAddCommand),
+
+    /// Remove elements from the build model
+    #[command(subcommand)]
+    Remove(BuildModelRemoveCommand),
+
+    /// List all elements of a specific type
+    List {
+        /// Element type: artifacts, dependencies
+        #[arg(value_enum)]
+        element: BuildModelListElement,
+    },
+
+    /// Show detailed information about an element
+    Show {
+        /// Element ID to display
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum BuildModelAddCommand {
+    /// Add a build artifact (binary, library, docker image, etc.)
+    Artifact {
+        /// Artifact ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Artifact display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Artifact description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Build tool
+        #[arg(long, value_enum)]
+        build_tool: Option<BuildToolArg>,
+        /// Output type
+        #[arg(long, value_enum)]
+        output_type: Option<OutputTypeArg>,
+        /// Source packages (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        source_packages: Vec<String>,
+        /// Build file path (e.g., Cargo.toml, pom.xml)
+        #[arg(long)]
+        build_file: Option<String>,
+        /// Build profile
+        #[arg(long, value_enum)]
+        profile: Option<BuildProfileArg>,
+        /// Additional build arguments
+        #[arg(long)]
+        build_args: Option<String>,
+    },
+
+    /// Add a dependency between artifacts
+    Dependency {
+        /// Source artifact ID
+        from: String,
+        /// Target artifact ID
+        to: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum BuildModelRemoveCommand {
+    /// Remove an artifact
+    Artifact {
+        /// Artifact ID to remove
+        id: String,
+    },
+
+    /// Remove a dependency
+    Dependency {
+        /// Source artifact ID
+        from: String,
+        /// Target artifact ID
+        to: String,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum BuildModelListElement {
+    Artifacts,
+    Dependencies,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum BuildToolArg {
+    Cargo,
+    Maven,
+    Gradle,
+    Npm,
+    Pip,
+    Make,
+    Cmake,
+    GoBuild,
+    Dotnet,
+    Bazel,
+}
+
+impl From<BuildToolArg> for crate::model::build::BuildTool {
+    fn from(value: BuildToolArg) -> Self {
+        match value {
+            BuildToolArg::Cargo => crate::model::build::BuildTool::Cargo,
+            BuildToolArg::Maven => crate::model::build::BuildTool::Maven,
+            BuildToolArg::Gradle => crate::model::build::BuildTool::Gradle,
+            BuildToolArg::Npm => crate::model::build::BuildTool::Npm,
+            BuildToolArg::Pip => crate::model::build::BuildTool::Pip,
+            BuildToolArg::Make => crate::model::build::BuildTool::Make,
+            BuildToolArg::Cmake => crate::model::build::BuildTool::Cmake,
+            BuildToolArg::GoBuild => crate::model::build::BuildTool::GoBuild,
+            BuildToolArg::Dotnet => crate::model::build::BuildTool::Dotnet,
+            BuildToolArg::Bazel => crate::model::build::BuildTool::Bazel,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum OutputTypeArg {
+    Binary,
+    Library,
+    DockerImage,
+    Archive,
+    Bundle,
+}
+
+impl From<OutputTypeArg> for crate::model::build::OutputType {
+    fn from(value: OutputTypeArg) -> Self {
+        match value {
+            OutputTypeArg::Binary => crate::model::build::OutputType::Binary,
+            OutputTypeArg::Library => crate::model::build::OutputType::Library,
+            OutputTypeArg::DockerImage => crate::model::build::OutputType::DockerImage,
+            OutputTypeArg::Archive => crate::model::build::OutputType::Archive,
+            OutputTypeArg::Bundle => crate::model::build::OutputType::Bundle,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum BuildProfileArg {
+    Debug,
+    Release,
+}
+
+impl From<BuildProfileArg> for crate::model::build::BuildProfile {
+    fn from(value: BuildProfileArg) -> Self {
+        match value {
+            BuildProfileArg::Debug => crate::model::build::BuildProfile::Debug,
+            BuildProfileArg::Release => crate::model::build::BuildProfile::Release,
+        }
+    }
+}
+
+// ==================== Delivery Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum DeliveryModelCommand {
+    /// Add elements to the delivery model
+    #[command(subcommand)]
+    Add(DeliveryModelAddCommand),
+
+    /// Remove elements from the delivery model
+    #[command(subcommand)]
+    Remove(DeliveryModelRemoveCommand),
+
+    /// List all elements of a specific type
+    List {
+        /// Element type: packages
+        #[arg(value_enum)]
+        element: DeliveryModelListElement,
+    },
+
+    /// Show detailed information about an element
+    Show {
+        /// Element ID to display
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DeliveryModelAddCommand {
+    /// Add a delivery package (container image, archive, installer, etc.)
+    Package {
+        /// Package ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Package display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Package description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Package version
+        #[arg(short = 'v', long)]
+        version: Option<String>,
+        /// Delivery type
+        #[arg(long, value_enum)]
+        delivery_type: Option<DeliveryTypeArg>,
+        /// Referenced build artifacts (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        artifacts: Vec<String>,
+        /// Registry URL
+        #[arg(long)]
+        registry: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DeliveryModelRemoveCommand {
+    /// Remove a package
+    Package {
+        /// Package ID to remove
+        id: String,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum DeliveryModelListElement {
+    Packages,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum DeliveryTypeArg {
+    ContainerImage,
+    Archive,
+    Installer,
+    HelmChart,
+    NpmPackage,
+    Crate,
+}
+
+impl From<DeliveryTypeArg> for crate::model::delivery::DeliveryType {
+    fn from(value: DeliveryTypeArg) -> Self {
+        match value {
+            DeliveryTypeArg::ContainerImage => crate::model::delivery::DeliveryType::ContainerImage,
+            DeliveryTypeArg::Archive => crate::model::delivery::DeliveryType::Archive,
+            DeliveryTypeArg::Installer => crate::model::delivery::DeliveryType::Installer,
+            DeliveryTypeArg::HelmChart => crate::model::delivery::DeliveryType::HelmChart,
+            DeliveryTypeArg::NpmPackage => crate::model::delivery::DeliveryType::NpmPackage,
+            DeliveryTypeArg::Crate => crate::model::delivery::DeliveryType::Crate,
+        }
+    }
+}
+
+// ==================== Deployment Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum DeploymentModelCommand {
+    /// Add elements to the deployment model
+    #[command(subcommand)]
+    Add(DeploymentModelAddCommand),
+
+    /// Remove elements from the deployment model
+    #[command(subcommand)]
+    Remove(DeploymentModelRemoveCommand),
+
+    /// List all elements of a specific type
+    List {
+        /// Element type: environments, nodes, services, network-links
+        #[arg(value_enum)]
+        element: DeploymentModelListElement,
+    },
+
+    /// Show detailed information about an element
+    Show {
+        /// Element ID to display
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DeploymentModelAddCommand {
+    /// Add a deployment environment (e.g., production, staging)
+    Environment {
+        /// Environment ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Environment display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Environment description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+
+    /// Add a deployment node (server, VM, container, k8s cluster)
+    Node {
+        /// Node ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Node display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Node description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Node type
+        #[arg(short = 't', long, value_enum)]
+        node_type: Option<NodeTypeArg>,
+        /// Environment this node belongs to
+        #[arg(long)]
+        environment: Option<String>,
+        /// Technology (e.g., k3s, docker, vmware)
+        #[arg(long)]
+        technology: Option<String>,
+    },
+
+    /// Add a deployed service (references delivery package)
+    Service {
+        /// Service ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Service display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Service description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Delivery package ID (must exist in delivery model)
+        #[arg(long)]
+        delivery_package: String,
+        /// Target node ID (must exist in deployment model)
+        #[arg(long)]
+        target_node: String,
+        /// Number of replicas
+        #[arg(long)]
+        replicas: Option<u32>,
+        /// Service port
+        #[arg(long)]
+        port: Option<u16>,
+    },
+
+    /// Add a network link between services
+    #[command(long_about = "Add a network link between two deployed services.
+
+Both services must exist before creating the link.")]
+    NetworkLink {
+        /// Network link ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Source service ID
+        #[arg(long)]
+        from: String,
+        /// Target service ID
+        #[arg(long)]
+        to: String,
+        /// Protocol (e.g., http, tcp, grpc)
+        #[arg(short = 'p', long)]
+        protocol: Option<String>,
+        /// Port number
+        #[arg(long)]
+        port: Option<u16>,
+        /// Description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DeploymentModelRemoveCommand {
+    /// Remove an environment (blocked if nodes reference it)
+    Environment {
+        /// Environment ID to remove
+        id: String,
+    },
+
+    /// Remove a node (blocked if services reference it)
+    Node {
+        /// Node ID to remove
+        id: String,
+    },
+
+    /// Remove a service (also removes referencing network links)
+    Service {
+        /// Service ID to remove
+        id: String,
+    },
+
+    /// Remove a network link
+    NetworkLink {
+        /// Network link ID to remove
+        id: String,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum DeploymentModelListElement {
+    Environments,
+    Nodes,
+    Services,
+    #[value(name = "network-links")]
+    NetworkLinks,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum NodeTypeArg {
+    Server,
+    Vm,
+    Container,
+    Kubernetes,
+    Serverless,
+}
+
+impl From<NodeTypeArg> for crate::model::deployment::NodeType {
+    fn from(value: NodeTypeArg) -> Self {
+        match value {
+            NodeTypeArg::Server => crate::model::deployment::NodeType::Server,
+            NodeTypeArg::Vm => crate::model::deployment::NodeType::Vm,
+            NodeTypeArg::Container => crate::model::deployment::NodeType::Container,
+            NodeTypeArg::Kubernetes => crate::model::deployment::NodeType::Kubernetes,
+            NodeTypeArg::Serverless => crate::model::deployment::NodeType::Serverless,
+        }
+    }
 }

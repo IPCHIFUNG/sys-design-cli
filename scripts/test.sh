@@ -56,37 +56,37 @@ run_cli_tests() {
     echo ""
     echo "Add Commands:"
     cd "$TEST_DIR"
-    do_test "add system (auto-create)" "$BINARY context-model -s $YAML_FILE add system test-project --name Test" "Added"
+    do_test "add system (auto-create)" "$BINARY context-model -m $YAML_FILE add system test-project --name Test" "Added"
     do_test "YAML auto-created" "ls -la $YAML_FILE" "test-project.yaml"
-    do_test "add actor" "$BINARY context-model -s $YAML_FILE add actor user --name User -t external" "Added"
-    do_test "add external-system" "$BINARY context-model -s $YAML_FILE add external-system db --name DB" "Added"
-    do_test "add interface" "$BINARY context-model -s $YAML_FILE add interface api --name API" "Added"
-    do_test "add provide-relation" "$BINARY context-model -s $YAML_FILE add provide-relation test-project api" "Added"
-    do_test "add interface-usage" "$BINARY context-model -s $YAML_FILE add interface-usage user api" "Added"
+    do_test "add actor" "$BINARY context-model -m $YAML_FILE add actor user --name User -t external" "Added"
+    do_test "add external-system" "$BINARY context-model -m $YAML_FILE add external-system db --name DB" "Added"
+    do_test "add interface" "$BINARY context-model -m $YAML_FILE add interface api --name API" "Added"
+    do_test "add provide-relation" "$BINARY context-model -m $YAML_FILE add provide-relation test-project api" "Added"
+    do_test "add interface-usage" "$BINARY context-model -m $YAML_FILE add interface-usage user api" "Added"
 
     # List 测试
     echo ""
     echo "List Commands:"
-    do_test "list system" "$BINARY context-model -s $YAML_FILE list system" "test-project"
-    do_test "list actors" "$BINARY context-model -s $YAML_FILE list actors" "user"
-    do_test "list relations" "$BINARY context-model -s $YAML_FILE list relations" "user"
+    do_test "list system" "$BINARY context-model -m $YAML_FILE list system" "test-project"
+    do_test "list actors" "$BINARY context-model -m $YAML_FILE list actors" "user"
+    do_test "list relations" "$BINARY context-model -m $YAML_FILE list relations" "user"
 
     # Generate 测试
     echo ""
     echo "Generate Command:"
-    do_test "generate" "$BINARY generate -s $YAML_FILE -o output.puml" "Generated"
+    do_test "generate" "$BINARY generate -m $YAML_FILE -o output.puml" "Generated"
     do_test "PlantUML content" "cat output.puml" "@startuml"
 
     # Validate 测试
     echo ""
     echo "Validate Command:"
-    do_test "validate" "$BINARY validate -s $YAML_FILE" "Validation passed"
+    do_test "validate" "$BINARY validate -m $YAML_FILE" "Validation passed"
 
     # Remove 测试
     echo ""
     echo "Remove Commands:"
-    do_test "remove interface-usage" "$BINARY context-model -s $YAML_FILE remove interface-usage user api" "Removed"
-    do_test "remove actor" "$BINARY context-model -s $YAML_FILE remove actor user" "Removed"
+    do_test "remove interface-usage" "$BINARY context-model -m $YAML_FILE remove interface-usage user api" "Removed"
+    do_test "remove actor" "$BINARY context-model -m $YAML_FILE remove actor user" "Removed"
 
     # 总结
     echo ""

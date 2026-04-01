@@ -5,19 +5,19 @@ use crate::utils::error::Result;
 use colored::Colorize;
 use std::path::Path;
 
-pub fn execute(src: &Path, cmd: ContextModelCommand) -> Result<()> {
+pub fn execute(model_file: &Path, cmd: ContextModelCommand) -> Result<()> {
     match cmd {
-        ContextModelCommand::Add(add_cmd) => execute_add(src, add_cmd),
-        ContextModelCommand::Remove(remove_cmd) => execute_remove(src, remove_cmd),
-        ContextModelCommand::List { element } => execute_list(src, element),
-        ContextModelCommand::Show { id } => execute_show(src, &id),
+        ContextModelCommand::Add(add_cmd) => execute_add(model_file, add_cmd),
+        ContextModelCommand::Remove(remove_cmd) => execute_remove(model_file, remove_cmd),
+        ContextModelCommand::List { element } => execute_list(model_file, element),
+        ContextModelCommand::Show { id } => execute_show(model_file, &id),
     }
 }
 
-fn execute_add(src: &Path, cmd: AddCommand) -> Result<()> {
+fn execute_add(model_file: &Path, cmd: AddCommand) -> Result<()> {
     // Load or create workspace
-    let (mut workspace, is_new_file) = if YamlStore::exists(src) {
-        (YamlStore::load_workspace_any(src)?, false)
+    let (mut workspace, is_new_file) = if YamlStore::exists(model_file) {
+        (YamlStore::load_workspace_any(model_file)?, false)
     } else {
         // Only allow auto-create for System command
         match &cmd {
@@ -25,12 +25,12 @@ fn execute_add(src: &Path, cmd: AddCommand) -> Result<()> {
                 let title = format!("{} Context Diagram", id);
                 let mut ws = Workspace::new(&title);
                 ws.context_diagram = Some(crate::model::c4::context::ContextDiagram::new(id, &title));
-                println!("{} new project file: {}", "Created".green(), src.display());
+                println!("{} new project file: {}", "Created".green(), model_file.display());
                 (ws, true)
             }
             _ => {
                 return Err(crate::utils::error::AppError::InvalidOperation(
-                    format!("File '{}' does not exist. Create it first with 'add system' command.", src.display()),
+                    format!("File '{}' does not exist. Create it first with 'add system' command.", model_file.display()),
                 ));
             }
         }
@@ -151,12 +151,12 @@ fn execute_add(src: &Path, cmd: AddCommand) -> Result<()> {
         }
     }
 
-    YamlStore::save_context_to_workspace(src, &mut workspace, &diagram)?;
+    YamlStore::save_context_to_workspace(model_file, &mut workspace, &diagram)?;
     Ok(())
 }
 
-fn execute_remove(src: &Path, cmd: RemoveCommand) -> Result<()> {
-    let mut workspace = YamlStore::load_workspace_any(src)?;
+fn execute_remove(model_file: &Path, cmd: RemoveCommand) -> Result<()> {
+    let mut workspace = YamlStore::load_workspace_any(model_file)?;
     let mut diagram = workspace.context_diagram.clone().ok_or_else(|| {
         crate::utils::error::AppError::ElementNotFound(
             "context_diagram not found in workspace".to_string()
@@ -202,7 +202,7 @@ fn execute_remove(src: &Path, cmd: RemoveCommand) -> Result<()> {
         }
     }
 
-    YamlStore::save_context_to_workspace(src, &mut workspace, &diagram)?;
+    YamlStore::save_context_to_workspace(model_file, &mut workspace, &diagram)?;
     Ok(())
 }
 
@@ -214,8 +214,8 @@ fn get_diagram_from_workspace(workspace: &Workspace) -> Result<crate::model::c4:
     })
 }
 
-fn execute_list(src: &Path, element: ListElement) -> Result<()> {
-    let workspace = YamlStore::load_workspace_any(src)?;
+fn execute_list(model_file: &Path, element: ListElement) -> Result<()> {
+    let workspace = YamlStore::load_workspace_any(model_file)?;
     let diagram = get_diagram_from_workspace(&workspace)?;
 
     match element {
@@ -293,8 +293,8 @@ fn execute_list(src: &Path, element: ListElement) -> Result<()> {
     Ok(())
 }
 
-fn execute_show(src: &Path, id: &str) -> Result<()> {
-    let workspace = YamlStore::load_workspace_any(src)?;
+fn execute_show(model_file: &Path, id: &str) -> Result<()> {
+    let workspace = YamlStore::load_workspace_any(model_file)?;
     let diagram = get_diagram_from_workspace(&workspace)?;
 
     // Check system
