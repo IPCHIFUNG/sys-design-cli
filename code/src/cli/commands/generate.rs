@@ -1,7 +1,8 @@
 use crate::cli::args::GenerateCommand;
 use crate::generator::plantuml::{
     generate_logic_concept_plantuml_with_workspace, generate_plantuml, generate_concept_model_plantuml,
-    generate_runtime_plantuml,
+    generate_runtime_plantuml, generate_code_model_plantuml, generate_build_model_plantuml,
+    generate_delivery_model_plantuml, generate_deployment_model_plantuml,
 };
 use crate::store::YamlStore;
 use crate::utils::error::{AppError, Result};
@@ -80,6 +81,34 @@ fn generate_from_workspace(
             }
             None => Err(AppError::ElementNotFound(
                 "runtime_view not found in workspace".to_string(),
+            )),
+        },
+        GenerateCommand::CodeModelDiagram => match &workspace.code_model {
+            Some(model) => Ok(generate_code_model_plantuml(workspace, model)),
+            None => Err(AppError::ElementNotFound(
+                "code_model not found in workspace".to_string(),
+            )),
+        },
+        GenerateCommand::BuildModelDiagram => match &workspace.build_model {
+            Some(model) => Ok(generate_build_model_plantuml(workspace, model)),
+            None => Err(AppError::ElementNotFound(
+                "build_model not found in workspace".to_string(),
+            )),
+        },
+        GenerateCommand::DeliveryModelDiagram => match &workspace.delivery_model {
+            Some(model) => Ok(generate_delivery_model_plantuml(workspace, model)),
+            None => Err(AppError::ElementNotFound(
+                "delivery_model not found in workspace".to_string(),
+            )),
+        },
+        GenerateCommand::DeploymentModelDiagram { environment_id } => match &workspace.deployment_model {
+            Some(model) => {
+                let env_id = environment_id.as_deref();
+                generate_deployment_model_plantuml(workspace, model, env_id)
+                    .map_err(|e| AppError::InvalidOperation(e))
+            }
+            None => Err(AppError::ElementNotFound(
+                "deployment_model not found in workspace".to_string(),
             )),
         },
     }

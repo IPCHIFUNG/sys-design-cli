@@ -33,6 +33,10 @@ source "$SCRIPT_DIR/tests/test_context_model.sh"
 source "$SCRIPT_DIR/tests/test_concept_model.sh"
 source "$SCRIPT_DIR/tests/test_logic_model.sh"
 source "$SCRIPT_DIR/tests/test_runtime_model.sh"
+source "$SCRIPT_DIR/tests/test_code_model.sh"
+source "$SCRIPT_DIR/tests/test_build_model.sh"
+source "$SCRIPT_DIR/tests/test_delivery_model.sh"
+source "$SCRIPT_DIR/tests/test_deployment_model.sh"
 source "$SCRIPT_DIR/tests/test_generate_validate.sh"
 
 # ————— 汇总 —————

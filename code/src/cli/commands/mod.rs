@@ -1,5 +1,9 @@
 pub mod concept_model;
 pub mod context_model;
+pub mod code_model;
+pub mod build_model;
+pub mod delivery_model;
+pub mod deployment_model;
 pub mod generate;
 pub mod logic_model;
 pub mod runtime_model;

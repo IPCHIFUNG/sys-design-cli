@@ -229,6 +229,113 @@ EXAMPLES:
         #[command(subcommand)]
         command: RuntimeModelCommand,
     },
+
+    /// Code model CRUD operations (packages, dependencies)
+    #[command(long_about = "Code model operations.
+
+Manage code-level elements:
+  • Packages - Code packages (libraries, services, modules)
+  • Dependencies - Inter-package dependencies
+
+EXAMPLES:
+  # Add a package
+  sys-design code-model -m model.yaml add package CORE_LIB -n \"Core Library\" -l rust
+
+  # Add a dependency
+  sys-design code-model -m model.yaml add dependency CORE_LIB UTIL_LIB
+
+  # List all packages
+  sys-design code-model -m model.yaml list packages")]
+    CodeModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: CodeModelCommand,
+    },
+
+    /// Build model CRUD operations (artifacts, dependencies)
+    #[command(long_about = "Build model operations.
+
+Manage build-level elements:
+  • Artifacts - Build outputs (binaries, libraries, docker images, archives)
+  • Dependencies - Inter-artifact build dependencies
+
+EXAMPLES:
+  # Add an artifact
+  sys-design build-model -m model.yaml add artifact CORE_BIN -n \"Core Binary\" --build-tool cargo --output-type binary
+
+  # Add a dependency
+  sys-design build-model -m model.yaml add dependency CORE_BIN UTIL_LIB
+
+  # List all artifacts
+  sys-design build-model -m model.yaml list artifacts")]
+    BuildModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: BuildModelCommand,
+    },
+
+    /// Delivery model CRUD operations (packages)
+    #[command(long_about = "Delivery model operations.
+
+Manage delivery-level elements:
+  • Packages - Delivery packages (container images, archives, installers, etc.)
+
+EXAMPLES:
+  # Add a package
+  sys-design delivery-model -m model.yaml add package CORE_IMG -n \"Core Image\" --delivery-type container_image -v 1.0.0
+
+  # Add a package with artifact references
+  sys-design delivery-model -m model.yaml add package CORE_IMG -n \"Core Image\" --artifacts CORE_BIN,UTIL_BIN --registry registry.example.com
+
+  # List all packages
+  sys-design delivery-model -m model.yaml list packages")]
+    DeliveryModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: DeliveryModelCommand,
+    },
+
+    /// Deployment model CRUD operations (environments, nodes, services, network-links)
+    #[command(long_about = "Deployment model operations.
+
+Manage deployment-level elements:
+  • Environments - Deployment environments (production, staging, etc.)
+  • Nodes - Deployment targets (servers, VMs, containers, k8s clusters)
+  • Services - Deployed services (reference delivery packages)
+  • Network Links - Inter-service network connections
+
+EXAMPLES:
+  # Add an environment
+  sys-design deployment-model -m model.yaml add environment PROD -n \"Production\"
+
+  # Add a node
+  sys-design deployment-model -m model.yaml add node K8S_CLUSTER -n \"K8s\" -t kubernetes --environment PROD
+
+  # Add a service
+  sys-design deployment-model -m model.yaml add service API_SVC -n \"API\" --delivery-package CORE_IMG --target-node K8S_CLUSTER --replicas 3 --port 8080
+
+  # Add a network link
+  sys-design deployment-model -m model.yaml add network-link API_TO_DB --from API_SVC --to DB_SVC -p http --port 5432
+
+  # List all services
+  sys-design deployment-model -m model.yaml list services")]
+    DeploymentModel {
+        /// Model file path
+        #[arg(short = 'm', long = "model_file", value_name = "FILE")]
+        model_file: PathBuf,
+
+        #[command(subcommand)]
+        command: DeploymentModelCommand,
+    },
 }
 
 /// Generate command subcommands
@@ -308,6 +415,66 @@ EXAMPLES:
         /// Scenario ID to generate (required when multiple scenarios exist)
         scenario_id: Option<String>,
     },
+
+    /// Generate code model diagram
+    #[command(long_about = "Generate a code model diagram showing packages and dependencies.
+
+Displays:
+  • Packages with their programming languages
+  • Package-to-package dependencies
+  • Mapping notes to logic view elements
+
+OUTPUT: PlantUML package diagram")]
+    CodeModelDiagram,
+
+    /// Generate build model diagram
+    #[command(long_about = "Generate a build model diagram showing artifacts and dependencies.
+
+Displays:
+  • Build artifacts with their output types
+  • Artifact-to-artifact dependencies
+  • Source package mapping notes
+
+OUTPUT: PlantUML artifact diagram")]
+    BuildModelDiagram,
+
+    /// Generate delivery model diagram
+    #[command(long_about = "Generate a delivery model diagram showing packages and their details.
+
+Displays:
+  • Delivery packages with their delivery types
+  • Version and artifact mapping notes
+  • Registry information
+
+OUTPUT: PlantUML package diagram")]
+    DeliveryModelDiagram,
+
+    /// Generate deployment model diagram
+    #[command(long_about = "Generate a deployment model diagram showing environments, nodes, and services.
+
+Displays:
+  • Environments as rectangles
+  • Nodes within environments with their types
+  • Deployed services with delivery package, replicas, port
+  • Network links between services
+
+ARGUMENTS:
+  [ENVIRONMENT_ID] - Optional environment ID to filter the diagram.
+                      Required when multiple environments exist.
+                      If only one environment exists, it is used automatically.
+
+OUTPUT: PlantUML deployment diagram
+
+EXAMPLES:
+  # Generate full deployment diagram
+  sys-design generate -m model.yaml deployment-model-diagram
+
+  # Generate for specific environment
+  sys-design generate -m model.yaml deployment-model-diagram PROD")]
+    DeploymentModelDiagram {
+        /// Environment ID to filter (required when multiple environments exist)
+        environment_id: Option<String>,
+    },
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -320,6 +487,14 @@ pub enum DiagramType {
     LogicView,
     /// Runtime view - Dynamic behavior as sequence diagrams
     RuntimeView,
+    /// Code model - Code packages and dependencies
+    CodeModel,
+    /// Build model - Build artifacts and dependencies
+    BuildModel,
+    /// Delivery model - Delivery packages and registries
+    DeliveryModel,
+    /// Deployment model - Environments, nodes, services, network links
+    DeploymentModel,
 }
 
 #[derive(Subcommand)]
@@ -1216,6 +1391,535 @@ impl From<NotePositionArg> for crate::model::runtime::NotePosition {
             NotePositionArg::Left => crate::model::runtime::NotePosition::Left,
             NotePositionArg::Right => crate::model::runtime::NotePosition::Right,
             NotePositionArg::Over => crate::model::runtime::NotePosition::Over,
+        }
+    }
+}
+
+// ==================== Code Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum CodeModelCommand {
+    /// Add elements to the code model
+    #[command(subcommand)]
+    Add(CodeModelAddCommand),
+
+    /// Remove elements from the code model
+    #[command(subcommand)]
+    Remove(CodeModelRemoveCommand),
+
+    /// List all elements of a specific type
+    List {
+        /// Element type: packages, dependencies
+        #[arg(value_enum)]
+        element: CodeModelListElement,
+    },
+
+    /// Show detailed information about an element
+    Show {
+        /// Element ID to display
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum CodeModelAddCommand {
+    /// Add a code package (library, service, module)
+    Package {
+        /// Package ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Package display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Package description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Programming language
+        #[arg(short = 'l', long, value_enum)]
+        language: Option<LanguageArg>,
+        /// Framework (e.g., actix, spring)
+        #[arg(long)]
+        framework: Option<String>,
+        /// Source code path
+        #[arg(long)]
+        path: Option<String>,
+        /// Reference to logic_view element ID
+        #[arg(long)]
+        element_id: Option<String>,
+    },
+
+    /// Add a dependency between packages
+    Dependency {
+        /// Source package ID
+        from: String,
+        /// Target package ID
+        to: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum CodeModelRemoveCommand {
+    /// Remove a package
+    Package {
+        /// Package ID to remove
+        id: String,
+    },
+
+    /// Remove a dependency
+    Dependency {
+        /// Source package ID
+        from: String,
+        /// Target package ID
+        to: String,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum CodeModelListElement {
+    Packages,
+    Dependencies,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum LanguageArg {
+    Rust,
+    Java,
+    Python,
+    Go,
+    TypeScript,
+    Cpp,
+    CSharp,
+    JavaScript,
+    Kotlin,
+    Swift,
+}
+
+impl From<LanguageArg> for crate::model::code::Language {
+    fn from(value: LanguageArg) -> Self {
+        match value {
+            LanguageArg::Rust => crate::model::code::Language::Rust,
+            LanguageArg::Java => crate::model::code::Language::Java,
+            LanguageArg::Python => crate::model::code::Language::Python,
+            LanguageArg::Go => crate::model::code::Language::Go,
+            LanguageArg::TypeScript => crate::model::code::Language::TypeScript,
+            LanguageArg::Cpp => crate::model::code::Language::Cpp,
+            LanguageArg::CSharp => crate::model::code::Language::CSharp,
+            LanguageArg::JavaScript => crate::model::code::Language::JavaScript,
+            LanguageArg::Kotlin => crate::model::code::Language::Kotlin,
+            LanguageArg::Swift => crate::model::code::Language::Swift,
+        }
+    }
+}
+
+// ==================== Build Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum BuildModelCommand {
+    /// Add elements to the build model
+    #[command(subcommand)]
+    Add(BuildModelAddCommand),
+
+    /// Remove elements from the build model
+    #[command(subcommand)]
+    Remove(BuildModelRemoveCommand),
+
+    /// List all elements of a specific type
+    List {
+        /// Element type: artifacts, dependencies
+        #[arg(value_enum)]
+        element: BuildModelListElement,
+    },
+
+    /// Show detailed information about an element
+    Show {
+        /// Element ID to display
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum BuildModelAddCommand {
+    /// Add a build artifact (binary, library, docker image, etc.)
+    Artifact {
+        /// Artifact ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Artifact display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Artifact description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Build tool
+        #[arg(long, value_enum)]
+        build_tool: Option<BuildToolArg>,
+        /// Output type
+        #[arg(long, value_enum)]
+        output_type: Option<OutputTypeArg>,
+        /// Source packages (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        source_packages: Vec<String>,
+        /// Build file path (e.g., Cargo.toml, pom.xml)
+        #[arg(long)]
+        build_file: Option<String>,
+        /// Build profile
+        #[arg(long, value_enum)]
+        profile: Option<BuildProfileArg>,
+        /// Additional build arguments
+        #[arg(long)]
+        build_args: Option<String>,
+    },
+
+    /// Add a dependency between artifacts
+    Dependency {
+        /// Source artifact ID
+        from: String,
+        /// Target artifact ID
+        to: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum BuildModelRemoveCommand {
+    /// Remove an artifact
+    Artifact {
+        /// Artifact ID to remove
+        id: String,
+    },
+
+    /// Remove a dependency
+    Dependency {
+        /// Source artifact ID
+        from: String,
+        /// Target artifact ID
+        to: String,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum BuildModelListElement {
+    Artifacts,
+    Dependencies,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum BuildToolArg {
+    Cargo,
+    Maven,
+    Gradle,
+    Npm,
+    Pip,
+    Make,
+    Cmake,
+    GoBuild,
+    Dotnet,
+    Bazel,
+}
+
+impl From<BuildToolArg> for crate::model::build::BuildTool {
+    fn from(value: BuildToolArg) -> Self {
+        match value {
+            BuildToolArg::Cargo => crate::model::build::BuildTool::Cargo,
+            BuildToolArg::Maven => crate::model::build::BuildTool::Maven,
+            BuildToolArg::Gradle => crate::model::build::BuildTool::Gradle,
+            BuildToolArg::Npm => crate::model::build::BuildTool::Npm,
+            BuildToolArg::Pip => crate::model::build::BuildTool::Pip,
+            BuildToolArg::Make => crate::model::build::BuildTool::Make,
+            BuildToolArg::Cmake => crate::model::build::BuildTool::Cmake,
+            BuildToolArg::GoBuild => crate::model::build::BuildTool::GoBuild,
+            BuildToolArg::Dotnet => crate::model::build::BuildTool::Dotnet,
+            BuildToolArg::Bazel => crate::model::build::BuildTool::Bazel,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum OutputTypeArg {
+    Binary,
+    Library,
+    DockerImage,
+    Archive,
+    Bundle,
+}
+
+impl From<OutputTypeArg> for crate::model::build::OutputType {
+    fn from(value: OutputTypeArg) -> Self {
+        match value {
+            OutputTypeArg::Binary => crate::model::build::OutputType::Binary,
+            OutputTypeArg::Library => crate::model::build::OutputType::Library,
+            OutputTypeArg::DockerImage => crate::model::build::OutputType::DockerImage,
+            OutputTypeArg::Archive => crate::model::build::OutputType::Archive,
+            OutputTypeArg::Bundle => crate::model::build::OutputType::Bundle,
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum BuildProfileArg {
+    Debug,
+    Release,
+}
+
+impl From<BuildProfileArg> for crate::model::build::BuildProfile {
+    fn from(value: BuildProfileArg) -> Self {
+        match value {
+            BuildProfileArg::Debug => crate::model::build::BuildProfile::Debug,
+            BuildProfileArg::Release => crate::model::build::BuildProfile::Release,
+        }
+    }
+}
+
+// ==================== Delivery Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum DeliveryModelCommand {
+    /// Add elements to the delivery model
+    #[command(subcommand)]
+    Add(DeliveryModelAddCommand),
+
+    /// Remove elements from the delivery model
+    #[command(subcommand)]
+    Remove(DeliveryModelRemoveCommand),
+
+    /// List all elements of a specific type
+    List {
+        /// Element type: packages
+        #[arg(value_enum)]
+        element: DeliveryModelListElement,
+    },
+
+    /// Show detailed information about an element
+    Show {
+        /// Element ID to display
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DeliveryModelAddCommand {
+    /// Add a delivery package (container image, archive, installer, etc.)
+    Package {
+        /// Package ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Package display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Package description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Package version
+        #[arg(short = 'v', long)]
+        version: Option<String>,
+        /// Delivery type
+        #[arg(long, value_enum)]
+        delivery_type: Option<DeliveryTypeArg>,
+        /// Referenced build artifacts (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        artifacts: Vec<String>,
+        /// Registry URL
+        #[arg(long)]
+        registry: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DeliveryModelRemoveCommand {
+    /// Remove a package
+    Package {
+        /// Package ID to remove
+        id: String,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum DeliveryModelListElement {
+    Packages,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum DeliveryTypeArg {
+    ContainerImage,
+    Archive,
+    Installer,
+    HelmChart,
+    NpmPackage,
+    Crate,
+}
+
+impl From<DeliveryTypeArg> for crate::model::delivery::DeliveryType {
+    fn from(value: DeliveryTypeArg) -> Self {
+        match value {
+            DeliveryTypeArg::ContainerImage => crate::model::delivery::DeliveryType::ContainerImage,
+            DeliveryTypeArg::Archive => crate::model::delivery::DeliveryType::Archive,
+            DeliveryTypeArg::Installer => crate::model::delivery::DeliveryType::Installer,
+            DeliveryTypeArg::HelmChart => crate::model::delivery::DeliveryType::HelmChart,
+            DeliveryTypeArg::NpmPackage => crate::model::delivery::DeliveryType::NpmPackage,
+            DeliveryTypeArg::Crate => crate::model::delivery::DeliveryType::Crate,
+        }
+    }
+}
+
+// ==================== Deployment Model Commands ====================
+
+#[derive(Subcommand)]
+pub enum DeploymentModelCommand {
+    /// Add elements to the deployment model
+    #[command(subcommand)]
+    Add(DeploymentModelAddCommand),
+
+    /// Remove elements from the deployment model
+    #[command(subcommand)]
+    Remove(DeploymentModelRemoveCommand),
+
+    /// List all elements of a specific type
+    List {
+        /// Element type: environments, nodes, services, network-links
+        #[arg(value_enum)]
+        element: DeploymentModelListElement,
+    },
+
+    /// Show detailed information about an element
+    Show {
+        /// Element ID to display
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DeploymentModelAddCommand {
+    /// Add a deployment environment (e.g., production, staging)
+    Environment {
+        /// Environment ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Environment display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Environment description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+
+    /// Add a deployment node (server, VM, container, k8s cluster)
+    Node {
+        /// Node ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Node display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Node description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Node type
+        #[arg(short = 't', long, value_enum)]
+        node_type: Option<NodeTypeArg>,
+        /// Environment this node belongs to
+        #[arg(long)]
+        environment: Option<String>,
+        /// Technology (e.g., k3s, docker, vmware)
+        #[arg(long)]
+        technology: Option<String>,
+    },
+
+    /// Add a deployed service (references delivery package)
+    Service {
+        /// Service ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Service display name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Service description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+        /// Delivery package ID (must exist in delivery model)
+        #[arg(long)]
+        delivery_package: String,
+        /// Target node ID (must exist in deployment model)
+        #[arg(long)]
+        target_node: String,
+        /// Number of replicas
+        #[arg(long)]
+        replicas: Option<u32>,
+        /// Service port
+        #[arg(long)]
+        port: Option<u16>,
+    },
+
+    /// Add a network link between services
+    #[command(long_about = "Add a network link between two deployed services.
+
+Both services must exist before creating the link.")]
+    NetworkLink {
+        /// Network link ID (UPPER_SNAKE_CASE)
+        id: String,
+        /// Source service ID
+        #[arg(long)]
+        from: String,
+        /// Target service ID
+        #[arg(long)]
+        to: String,
+        /// Protocol (e.g., http, tcp, grpc)
+        #[arg(short = 'p', long)]
+        protocol: Option<String>,
+        /// Port number
+        #[arg(long)]
+        port: Option<u16>,
+        /// Description
+        #[arg(short = 'd', long)]
+        desc: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DeploymentModelRemoveCommand {
+    /// Remove an environment (blocked if nodes reference it)
+    Environment {
+        /// Environment ID to remove
+        id: String,
+    },
+
+    /// Remove a node (blocked if services reference it)
+    Node {
+        /// Node ID to remove
+        id: String,
+    },
+
+    /// Remove a service (also removes referencing network links)
+    Service {
+        /// Service ID to remove
+        id: String,
+    },
+
+    /// Remove a network link
+    NetworkLink {
+        /// Network link ID to remove
+        id: String,
+    },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum DeploymentModelListElement {
+    Environments,
+    Nodes,
+    Services,
+    #[value(name = "network-links")]
+    NetworkLinks,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum NodeTypeArg {
+    Server,
+    Vm,
+    Container,
+    Kubernetes,
+    Serverless,
+}
+
+impl From<NodeTypeArg> for crate::model::deployment::NodeType {
+    fn from(value: NodeTypeArg) -> Self {
+        match value {
+            NodeTypeArg::Server => crate::model::deployment::NodeType::Server,
+            NodeTypeArg::Vm => crate::model::deployment::NodeType::Vm,
+            NodeTypeArg::Container => crate::model::deployment::NodeType::Container,
+            NodeTypeArg::Kubernetes => crate::model::deployment::NodeType::Kubernetes,
+            NodeTypeArg::Serverless => crate::model::deployment::NodeType::Serverless,
         }
     }
 }

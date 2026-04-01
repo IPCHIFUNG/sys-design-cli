@@ -40,3 +40,13 @@ assert_pass "validate -t concept-model 通过" \
 # logic-view 因 H001 会报错，验证错误信息包含 H001
 assert_contains "validate -t logic-view 报告 H001" "H001" \
     "$CLI" validate -m "$WORKSPACE" -t logic-view
+
+# 新增模型的 validate
+assert_pass "validate -t code-model 通过" \
+    "$CLI" validate -m "$WORKSPACE" -t code-model
+
+assert_pass "validate -t build-model 通过" \
+    "$CLI" validate -m "$WORKSPACE" -t build-model
+
+assert_pass "validate -t delivery-model 通过" \
+    "$CLI" validate -m "$WORKSPACE" -t delivery-model

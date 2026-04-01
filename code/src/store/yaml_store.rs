@@ -1,4 +1,8 @@
 use crate::model::c4::context::ContextDiagram;
+use crate::model::code::CodeModel;
+use crate::model::build::BuildModel;
+use crate::model::delivery::DeliveryModel;
+use crate::model::deployment::DeploymentModel;
 use crate::model::logic::concept::LogicConceptDiagram;
 use crate::model::logic::concept_model::LogicArchitectureConceptModel;
 use crate::model::runtime::RuntimeView;
@@ -77,6 +81,34 @@ impl YamlStore {
             return Ok(workspace);
         }
 
+        // Try to parse as code model and convert to workspace
+        if let Ok(code_model) = serde_yaml::from_str::<CodeModel>(&content) {
+            let mut workspace = Workspace::new(&code_model.metadata.title);
+            workspace.code_model = Some(code_model);
+            return Ok(workspace);
+        }
+
+        // Try to parse as delivery model and convert to workspace
+        if let Ok(delivery_model) = serde_yaml::from_str::<DeliveryModel>(&content) {
+            let mut workspace = Workspace::new(&delivery_model.metadata.title);
+            workspace.delivery_model = Some(delivery_model);
+            return Ok(workspace);
+        }
+
+        // Try to parse as build model and convert to workspace
+        if let Ok(build_model) = serde_yaml::from_str::<BuildModel>(&content) {
+            let mut workspace = Workspace::new(&build_model.metadata.title);
+            workspace.build_model = Some(build_model);
+            return Ok(workspace);
+        }
+
+        // Try to parse as deployment model and convert to workspace
+        if let Ok(deployment_model) = serde_yaml::from_str::<DeploymentModel>(&content) {
+            let mut workspace = Workspace::new(&deployment_model.metadata.title);
+            workspace.deployment_model = Some(deployment_model);
+            return Ok(workspace);
+        }
+
         Err(AppError::InvalidOperation("Unable to parse YAML file as workspace or diagram".to_string()))
     }
 
@@ -96,6 +128,24 @@ impl YamlStore {
 
     /// Save runtime view to workspace (always workspace format)
     pub fn save_runtime_to_workspace<P: AsRef<Path>>(path: P, workspace: &mut Workspace) -> Result<()> {
+        workspace.touch();
+        Self::save_workspace(path, workspace)
+    }
+
+    /// Save code model to workspace (always workspace format)
+    pub fn save_code_model_to_workspace<P: AsRef<Path>>(path: P, workspace: &mut Workspace) -> Result<()> {
+        workspace.touch();
+        Self::save_workspace(path, workspace)
+    }
+
+    /// Save delivery model to workspace (always workspace format)
+    pub fn save_delivery_model_to_workspace<P: AsRef<Path>>(path: P, workspace: &mut Workspace) -> Result<()> {
+        workspace.touch();
+        Self::save_workspace(path, workspace)
+    }
+
+    /// Save deployment model to workspace (always workspace format)
+    pub fn save_deployment_model_to_workspace<P: AsRef<Path>>(path: P, workspace: &mut Workspace) -> Result<()> {
         workspace.touch();
         Self::save_workspace(path, workspace)
     }

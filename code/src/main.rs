@@ -19,6 +19,18 @@ fn main() -> Result<()> {
         Commands::RuntimeModel { model_file, command } => {
             commands::runtime_model::execute(&model_file, command)?;
         }
+        Commands::CodeModel { model_file, command } => {
+            commands::code_model::execute(&model_file, command)?;
+        }
+        Commands::BuildModel { model_file, command } => {
+            commands::build_model::execute(&model_file, command)?;
+        }
+        Commands::DeliveryModel { model_file, command } => {
+            commands::delivery_model::execute(&model_file, command)?;
+        }
+        Commands::DeploymentModel { model_file, command } => {
+            commands::deployment_model::execute(&model_file, command)?;
+        }
         Commands::Generate { model_file, output, command } => {
             commands::generate::execute(&model_file, output, &command)?;
         }

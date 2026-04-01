@@ -1,6 +1,6 @@
 use crate::cli::args::{DiagramType, OutputFormat};
 use crate::store::YamlStore;
-use crate::validator::{validate, validate_logic_concept, validate_concept_model, validate_runtime_view};
+use crate::validator::{validate, validate_logic_concept, validate_concept_model, validate_runtime_view, validate_code_model, validate_build_model, validate_delivery_model, validate_deployment_model};
 use crate::validator::result::{ValidationResult, ValidationError, Severity};
 use crate::utils::error::{AppError, Result};
 use std::path::Path;
@@ -83,6 +83,54 @@ fn validate_from_workspace(
                 }
                 None => return Err(AppError::ElementNotFound(
                     "runtime_view not found in workspace".to_string()
+                )),
+            }
+        }
+        DiagramType::CodeModel => {
+            match &workspace.code_model {
+                Some(model) => {
+                    result.merge(validate_code_model(model));
+                    // Cross-diagram validation: element_id must exist in logic_view
+                    validate_code_model_element_references(workspace, model, &mut result);
+                }
+                None => return Err(AppError::ElementNotFound(
+                    "code_model not found in workspace".to_string()
+                )),
+            }
+        }
+        DiagramType::BuildModel => {
+            match &workspace.build_model {
+                Some(model) => {
+                    result.merge(validate_build_model(model));
+                    // Cross-diagram validation: source_packages must exist in code_model
+                    validate_build_model_source_references(workspace, model, &mut result);
+                }
+                None => return Err(AppError::ElementNotFound(
+                    "build_model not found in workspace".to_string()
+                )),
+            }
+        }
+        DiagramType::DeliveryModel => {
+            match &workspace.delivery_model {
+                Some(model) => {
+                    result.merge(validate_delivery_model(model));
+                    // Cross-diagram validation: artifacts must exist in build_model
+                    validate_delivery_model_artifact_references(workspace, model, &mut result);
+                }
+                None => return Err(AppError::ElementNotFound(
+                    "delivery_model not found in workspace".to_string()
+                )),
+            }
+        }
+        DiagramType::DeploymentModel => {
+            match &workspace.deployment_model {
+                Some(model) => {
+                    result.merge(validate_deployment_model(model));
+                    // Cross-diagram validation: delivery_package must exist in delivery_model
+                    validate_deployment_service_delivery_references(workspace, model, &mut result);
+                }
+                None => return Err(AppError::ElementNotFound(
+                    "deployment_model not found in workspace".to_string()
                 )),
             }
         }
@@ -523,6 +571,124 @@ fn validate_runtime_participant_references(
                     )),
                 });
             }
+        }
+    }
+}
+
+/// Validate that code model element_id references exist in logic_view
+fn validate_code_model_element_references(
+    workspace: &crate::model::workspace::Workspace,
+    model: &crate::model::code::CodeModel,
+    result: &mut ValidationResult,
+) {
+    for pkg in &model.packages {
+        if let Some(ref element_id) = pkg.element_id {
+            let found = workspace
+                .logic_view
+                .as_ref()
+                .map(|lv| lv.get_element_name(element_id).is_some())
+                .unwrap_or(false);
+
+            if !found {
+                result.add_error(ValidationError {
+                    code: "CM010".to_string(),
+                    rule: "ElementReferenceExists".to_string(),
+                    message: format!(
+                        "Package '{}' element_id '{}' does not exist in logic_view",
+                        pkg.id, element_id
+                    ),
+                    severity: Severity::Error,
+                    location: Some(format!("code_model.packages.{}.element_id", pkg.id)),
+                });
+            }
+        }
+    }
+}
+
+/// Validate that build model source_packages references exist in code_model
+fn validate_build_model_source_references(
+    workspace: &crate::model::workspace::Workspace,
+    model: &crate::model::build::BuildModel,
+    result: &mut ValidationResult,
+) {
+    if workspace.code_model.is_none() {
+        return;
+    }
+
+    let code_model = workspace.code_model.as_ref().unwrap();
+
+    for artifact in &model.artifacts {
+        for pkg_id in &artifact.source_packages {
+            if code_model.find_package(pkg_id).is_none() {
+                result.add_error(ValidationError {
+                    code: "BM006".to_string(),
+                    rule: "SourcePackageReferenceExists".to_string(),
+                    message: format!(
+                        "Artifact '{}' source_package '{}' does not exist in code_model",
+                        artifact.id, pkg_id
+                    ),
+                    severity: Severity::Error,
+                    location: Some(format!("build_model.artifacts.{}.source_packages", artifact.id)),
+                });
+            }
+        }
+    }
+}
+
+/// Validate that delivery model artifact references exist in build_model
+fn validate_delivery_model_artifact_references(
+    workspace: &crate::model::workspace::Workspace,
+    model: &crate::model::delivery::DeliveryModel,
+    result: &mut ValidationResult,
+) {
+    if workspace.build_model.is_none() {
+        return;
+    }
+
+    let build_model = workspace.build_model.as_ref().unwrap();
+
+    for package in &model.packages {
+        for art_id in &package.artifacts {
+            if build_model.find_artifact(art_id).is_none() {
+                result.add_error(ValidationError {
+                    code: "DM006".to_string(),
+                    rule: "ArtifactReferenceExists".to_string(),
+                    message: format!(
+                        "Package '{}' artifact '{}' does not exist in build_model",
+                        package.id, art_id
+                    ),
+                    severity: Severity::Error,
+                    location: Some(format!("delivery_model.packages.{}.artifacts", package.id)),
+                });
+            }
+        }
+    }
+}
+
+/// Validate that deployment model service delivery_package references exist in delivery_model
+fn validate_deployment_service_delivery_references(
+    workspace: &crate::model::workspace::Workspace,
+    model: &crate::model::deployment::DeploymentModel,
+    result: &mut ValidationResult,
+) {
+    if workspace.delivery_model.is_none() {
+        return;
+    }
+
+    let delivery_model = workspace.delivery_model.as_ref().unwrap();
+
+    for service in &model.services {
+        if delivery_model.find_package(&service.delivery_package).is_none() {
+            result.add_error(ValidationError {
+                code: "DP020".to_string(),
+                rule: "ServiceDeliveryPackageExists".to_string(),
+                message: format!(
+                    "Service '{}' delivery_package '{}' does not exist in delivery_model",
+                    service.id, service.delivery_package
+                ),
+                severity: Severity::Error,
+                location: Some(format!("deployment_model.services.{}.delivery_package", service.id)),
+            });
         }
     }
 }

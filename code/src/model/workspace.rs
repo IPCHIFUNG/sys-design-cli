@@ -1,6 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use crate::model::c4::context::ContextDiagram;
+use crate::model::code::CodeModel;
+use crate::model::build::BuildModel;
+use crate::model::delivery::DeliveryModel;
+use crate::model::deployment::DeploymentModel;
 use crate::model::logic::concept::LogicConceptDiagram;
 use crate::model::logic::concept_model::LogicArchitectureConceptModel;
 use crate::model::runtime::RuntimeView;
@@ -18,6 +22,14 @@ pub struct Workspace {
     pub logic_view: Option<LogicConceptDiagram>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime_view: Option<RuntimeView>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_model: Option<CodeModel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_model: Option<BuildModel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery_model: Option<DeliveryModel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deployment_model: Option<DeploymentModel>,
 }
 
 impl Workspace {
@@ -35,6 +47,10 @@ impl Workspace {
             logic_architecture_concept_model: None,
             logic_view: None,
             runtime_view: None,
+            code_model: None,
+            build_model: None,
+            delivery_model: None,
+            deployment_model: None,
         }
     }
 
@@ -61,6 +77,26 @@ impl Workspace {
     /// Check if runtime view exists
     pub fn has_runtime_view(&self) -> bool {
         self.runtime_view.is_some()
+    }
+
+    /// Check if code model exists
+    pub fn has_code_model(&self) -> bool {
+        self.code_model.is_some()
+    }
+
+    /// Check if build model exists
+    pub fn has_build_model(&self) -> bool {
+        self.build_model.is_some()
+    }
+
+    /// Check if delivery model exists
+    pub fn has_delivery_model(&self) -> bool {
+        self.delivery_model.is_some()
+    }
+
+    /// Check if deployment model exists
+    pub fn has_deployment_model(&self) -> bool {
+        self.deployment_model.is_some()
     }
 
     /// Get the concept model for validation
